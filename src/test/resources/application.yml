@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: new-sensor-data-server-test
+
+security:
+  auth-enabled: false
+
+manager:
+  service:
+    enabled: false
+
+sensor:
+  mqtt:
+    enabled: false
+
+influx:
+  enabled: false
