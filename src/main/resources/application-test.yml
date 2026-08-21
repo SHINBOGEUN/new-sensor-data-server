@@ -1,0 +1,20 @@
+influx:
+  enabled: true
+  url: ${INFLUX_URL:http://localhost:8086}
+  token: ${INFLUX_TOKEN:HZzmeRZHZSdG_wJ66YGnNN5A3F_6B9i8YaKH_pnpiCY2UAwCAwC8hUbo9Q3bZ7uCRaeiyNfKH0OHgTkAZQ1myg==}
+  org: ${INFLUX_ORG:vivans}
+  bucket: ${INFLUX_BUCKET:dcim}
+  measurement: ${INFLUX_MEASUREMENT:dcim_sensor}
+
+sensor:
+  mqtt:
+    enabled: true
+    broker-url: tcp://localhost:1883
+    client-id: new-sensor-data-server
+    topic: dcim/sensor/data
+
+manager:
+  service:
+    url: http://localhost:8080
+    api-key: sensor-data-service
+    enabled: true

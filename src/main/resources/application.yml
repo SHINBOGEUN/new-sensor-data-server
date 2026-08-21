@@ -1,6 +1,8 @@
 spring:
   application:
     name: new-sensor-data-server
+  profiles:
+    active: test
 
 server:
   port: 8082
@@ -32,7 +34,7 @@ management:
     web:
       exposure:
         include: health,metrics
-dsfsdfds
+
 manager:
   service:
     url: ${MANAGER_SERVICE_URL:http://localhost:8080}
