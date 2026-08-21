@@ -3,7 +3,6 @@ package net.vivans.dcim.module.influx.application;
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
 import com.influxdb.client.WriteApiBlocking;
-import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.client.write.Point;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -14,6 +13,7 @@ import net.vivans.dcim.module.manager.infrastructure.dto.ManagerDeviceResponse;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -47,23 +47,21 @@ public class InfluxWriteService {
             Map<String, Object> values,
             Instant collectedAt
     ) {
-        if (!properties.isEnabled() || writeApi == null || values == null || values.isEmpty()) {
+        if (!properties.isEnabled() || writeApi == null) {
             return;
         }
-        String locationCode = device == null ? "unknown" : nullToUnknown(device.locationNodeName());
-        Integer modelId = device == null ? null : device.modelId();
-        for (Map.Entry<String, Object> entry : values.entrySet()) {
-            Point point = Point.measurement(properties.getMeasurement())
-                    .addTag("device_id", String.valueOf(deviceId))
-                    .addTag("model_id", modelId == null ? "unknown" : String.valueOf(modelId))
-                    .addTag("location_code", locationCode)
-                    .addTag("point_name", entry.getKey())
-                    .addTag("protocol", "snmp")
-                    .addField("value", toDouble(entry.getValue()))
-                    .time(collectedAt, WritePrecision.MS);
-            writeApi.writePoint(point);
+        List<Point> points = SensorInfluxPointMapper.toPoints(
+                properties.getMeasurement(),
+                deviceId,
+                device,
+                values,
+                collectedAt
+        );
+        if (points.isEmpty()) {
+            return;
         }
-        log.debug("Influx write deviceId={} points={}", deviceId, values.size());
+        writeApi.writePoints(points);
+        log.debug("Influx write deviceId={} pointCount={}", deviceId, points.size());
     }
 
     @PreDestroy
@@ -71,19 +69,5 @@ public class InfluxWriteService {
         if (client != null) {
             client.close();
         }
-    }
-
-    private static double toDouble(Object value) {
-        if (value instanceof Number number) {
-            return number.doubleValue();
-        }
-        if (value == null) {
-            return 0d;
-        }
-        return Double.parseDouble(String.valueOf(value));
-    }
-
-    private static String nullToUnknown(String value) {
-        return value == null || value.isBlank() ? "unknown" : value;
     }
 }

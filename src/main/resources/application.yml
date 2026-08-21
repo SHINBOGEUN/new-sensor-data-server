@@ -32,11 +32,11 @@ management:
     web:
       exposure:
         include: health,metrics
-
+dsfsdfds
 manager:
   service:
     url: ${MANAGER_SERVICE_URL:http://localhost:8080}
-    api-key: ${MANAGER_API_KEY:manager-server}
+    api-key: ${MANAGER_API_KEY:sensor-data-service}
     enabled: ${MANAGER_LOOKUP_ENABLED:true}
 
 sensor:

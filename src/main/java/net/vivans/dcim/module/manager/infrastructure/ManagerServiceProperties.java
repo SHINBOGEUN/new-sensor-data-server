@@ -10,6 +10,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class ManagerServiceProperties {
 
     private String url = "http://localhost:8080";
-    private String apiKey = "manager-server";
+    private String apiKey = "sensor-data-service";
     private boolean enabled = true;
 }

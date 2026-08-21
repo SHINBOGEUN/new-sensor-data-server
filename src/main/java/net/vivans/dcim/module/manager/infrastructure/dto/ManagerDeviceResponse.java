@@ -5,6 +5,8 @@ public record ManagerDeviceResponse(
         Integer modelId,
         String modelName,
         String manufacturer,
+        String deviceTypeCode,
+        String locationNodeCode,
         String locationNodeName,
         String name,
         String description,
