@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -48,6 +49,7 @@ public class InfluxWriteService {
             Instant collectedAt
     ) {
         if (!properties.isEnabled() || writeApi == null) {
+            log.debug("Influx write skipped (disabled) deviceId={}", deviceId);
             return;
         }
         List<Point> points = SensorInfluxPointMapper.toPoints(
@@ -58,10 +60,42 @@ public class InfluxWriteService {
                 collectedAt
         );
         if (points.isEmpty()) {
+            log.warn("Influx write skipped (no valid points) deviceId={}", deviceId);
             return;
         }
         writeApi.writePoints(points);
-        log.debug("Influx write deviceId={} pointCount={}", deviceId, points.size());
+        log.info("Influx write deviceId={} {}", deviceId, formatKeyValues(values));
+    }
+
+    /** 실제 적재되는 point만 `key=value` 형태로 연결 */
+    private static String formatKeyValues(Map<String, Object> values) {
+        if (values == null || values.isEmpty()) {
+            return "";
+        }
+        return values.entrySet().stream()
+                .filter(e -> e.getKey() != null && !e.getKey().isBlank())
+                .map(e -> {
+                    Double value = toDoubleOrNull(e.getValue());
+                    return value == null ? null : e.getKey() + "=" + value;
+                })
+                .filter(s -> s != null)
+                .collect(Collectors.joining(" "));
+    }
+
+    private static Double toDoubleOrNull(Object value) {
+        if (value instanceof Number number) {
+            double converted = number.doubleValue();
+            return Double.isFinite(converted) ? converted : null;
+        }
+        if (value == null) {
+            return null;
+        }
+        try {
+            double converted = Double.parseDouble(String.valueOf(value).trim());
+            return Double.isFinite(converted) ? converted : null;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     @PreDestroy
