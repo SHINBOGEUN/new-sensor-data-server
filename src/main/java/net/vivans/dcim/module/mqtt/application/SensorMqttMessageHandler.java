@@ -7,6 +7,7 @@ import net.vivans.dcim.module.influx.application.InfluxWriteService;
 import net.vivans.dcim.module.manager.infrastructure.ManagerDeviceClient;
 import net.vivans.dcim.module.manager.infrastructure.dto.ManagerDeviceResponse;
 import net.vivans.dcim.module.mqtt.domain.SensorMqttPayload;
+import net.vivans.dcim.module.mqtt.domain.PueMqttPayload;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -27,7 +28,17 @@ public class SensorMqttMessageHandler {
     private final InfluxWriteService influxWriteService;
 
     public void handle(String topic, byte[] payload) {
+        long startedAt = System.nanoTime();
         try {
+            if (topic.endsWith("/pue")) {
+                PueMqttPayload pue = objectMapper.readValue(payload, PueMqttPayload.class);
+                log.info("[PUE_MQTT_RECEIVE_START] definitionId={} configVersion={} topic={}",
+                        pue.pueDefinitionId(), pue.configVersion(), topic);
+                influxWriteService.writePue(pue.pueDefinitionId(), pue.configVersion(), pue.value(), pue.totalPower(), pue.coolerPower(), parseCollectedAt(pue.datetime()));
+                log.info("[PUE_MQTT_RECEIVE_END] definitionId={} topic={} elapsedMs={}",
+                        pue.pueDefinitionId(), topic, elapsedMillis(startedAt));
+                return;
+            }
             SensorMqttPayload message = objectMapper.readValue(payload, SensorMqttPayload.class);
             if (message.data() == null || message.data().isEmpty()) {
                 log.debug("MQTT payload has no data topic={}", topic);
@@ -46,8 +57,13 @@ public class SensorMqttMessageHandler {
                 );
             }
         } catch (Exception exception) {
-            log.warn("MQTT message handling failed topic={}: {}", topic, exception.getMessage());
+            log.warn("[MQTT_RECEIVE_ERROR] topic={} elapsedMs={} exception={} message={}",
+                    topic, elapsedMillis(startedAt), exception.getClass().getSimpleName(), exception.getMessage());
         }
+    }
+
+    private static long elapsedMillis(long startedAt) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
     }
 
     private Instant parseCollectedAt(String datetime) {

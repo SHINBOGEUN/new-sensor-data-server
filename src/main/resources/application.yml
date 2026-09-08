@@ -47,6 +47,7 @@ sensor:
     broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
     client-id: ${MQTT_CLIENT_ID:new-sensor-data-server}
     topic: ${MQTT_TOPIC:dcim/sensor/data}
+    pue-topic: ${MQTT_PUE_TOPIC:dcim/derived/pue}
     username: ${MQTT_USERNAME:}
     password: ${MQTT_PASSWORD:}
 

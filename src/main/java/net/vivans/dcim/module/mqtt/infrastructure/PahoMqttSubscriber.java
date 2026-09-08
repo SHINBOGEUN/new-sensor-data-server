@@ -60,9 +60,12 @@ public class PahoMqttSubscriber {
             });
             client.connect(options);
             client.subscribe(properties.getTopic());
-            log.info("MQTT subscribed topic={} broker={}", properties.getTopic(), properties.getBrokerUrl());
+            client.subscribe(properties.getPueTopic());
+            log.info("[MQTT_SUBSCRIBE_END] topics=[{}, {}] broker={}",
+                    properties.getTopic(), properties.getPueTopic(), properties.getBrokerUrl());
         } catch (MqttException exception) {
-            log.warn("MQTT subscribe failed broker={}: {}", properties.getBrokerUrl(), exception.getMessage());
+            log.warn("[MQTT_SUBSCRIBE_ERROR] broker={} exception={} message={}",
+                    properties.getBrokerUrl(), exception.getClass().getSimpleName(), exception.getMessage());
         }
     }
 
