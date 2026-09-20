@@ -86,6 +86,39 @@ class SensorInfluxPointMapperTest {
     }
 
     @Test
+    void usesCallerSuppliedProtocolTagForLoraPath() {
+        List<Point> points = SensorInfluxPointMapper.toPoints(
+                "dcim_sensor",
+                9,
+                null,
+                Map.of("TEMPERATURE", 23.5),
+                COLLECTED_AT,
+                null,
+                "mqtt"
+        );
+
+        assertThat(points).hasSize(1);
+        assertThat(points.get(0).toLineProtocol()).contains("protocol=mqtt");
+        assertThat(points.get(0).toLineProtocol()).doesNotContain("protocol=snmp");
+    }
+
+    @Test
+    void blankProtocolFallsBackToSnmp() {
+        List<Point> points = SensorInfluxPointMapper.toPoints(
+                "dcim_sensor",
+                9,
+                null,
+                Map.of("V", 220.0),
+                COLLECTED_AT,
+                null,
+                "  "
+        );
+
+        assertThat(points).hasSize(1);
+        assertThat(points.get(0).toLineProtocol()).contains("protocol=snmp");
+    }
+
+    @Test
     void skipsNullAndNonNumericValues() {
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("V", 220.1);
