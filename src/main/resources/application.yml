@@ -51,6 +51,22 @@ sensor:
     username: ${MQTT_USERNAME:}
     password: ${MQTT_PASSWORD:}
 
+    # Dragino/LoRa(ChirpStack 등) 전용 MQTT 설정. 기존 sensor.mqtt.*(SNMP/Modbus/PUE 경로)와는
+    # 별도 브로커 연결로 동작하며 기본값은 비활성화(false)라 기존 수집 경로에는 영향이 없다.
+    lora:
+      enabled: ${LORA_MQTT_ENABLED:false}
+      broker-url: ${LORA_MQTT_BROKER_URL:tcp://localhost:1883}
+      client-id: ${LORA_MQTT_CLIENT_ID:new-sensor-data-server-lora}
+      topic: ${LORA_MQTT_TOPIC:application/#}
+      username: ${LORA_MQTT_USERNAME:}
+      password: ${LORA_MQTT_PASSWORD:}
+      # ChirpStack uplink event에서 devEUI를 찾을 JSON 경로. 실제 payload로 미확인 - 확인 전까지 가정값.
+      dev-eui-path: ${LORA_MQTT_DEV_EUI_PATH:deviceInfo.devEui}
+      # ChirpStack uplink event에서 deviceName을 찾을 JSON 경로. 레거시 sensor-data-service 코드로 확인됨.
+      device-name-path: ${LORA_MQTT_DEVICE_NAME_PATH:deviceInfo.deviceName}
+      config-cache-refresh-ms: ${LORA_MQTT_CONFIG_CACHE_REFRESH_MS:300000}
+      error-raw-payload-max-length: ${LORA_MQTT_ERROR_RAW_PAYLOAD_MAX_LENGTH:2000}
+
 influx:
   enabled: ${INFLUX_ENABLED:false}
   url: ${INFLUX_URL:http://localhost:8086}
