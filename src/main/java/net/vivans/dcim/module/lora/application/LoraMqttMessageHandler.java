@@ -12,7 +12,6 @@ import net.vivans.dcim.module.lora.infrastructure.dto.LoraIngestErrorLogRequest;
 import net.vivans.dcim.module.manager.infrastructure.ManagerDeviceClient;
 import net.vivans.dcim.module.manager.infrastructure.dto.ManagerDeviceResponse;
 import net.vivans.dcim.module.mqtt.config.LoraMqttProperties;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -39,7 +38,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "sensor.mqtt.lora.enabled", havingValue = "true")
 public class LoraMqttMessageHandler {
 
     private final ObjectMapper objectMapper;

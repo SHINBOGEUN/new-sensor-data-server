@@ -4,23 +4,21 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
- * Dragino/LoRa(ChirpStack 등 LoRaWAN 네트워크 서버) 전용 MQTT 브로커 설정.
- * 확정 전제: 브로커 host/port는 DB/UI가 아니라 이 환경설정으로만 관리한다.
- * 게이트웨이/네트워크 서버가 이미 필요한 토픽만 발행하므로 구독 토픽은 application/# 고정이며
- * 별도 토픽 관리 테이블·UI는 만들지 않는다 (환경변수로만 조정 가능하게 남겨둔다).
+ * LoRa MQTT 수집 서브시스템 설정.
+ * 실제 broker/topic 및 활성 여부는 Manager의 LoRa endpoint·lora_mqtt_source에서 받아온다.
+ * 이 설정은 매핑 경로와 자격증명 키 해석만 담당한다.
  */
 @Getter
 @Setter
 @ConfigurationProperties(prefix = "sensor.mqtt.lora")
 public class LoraMqttProperties {
 
-    private boolean enabled = false;
-    private String brokerUrl = "tcp://localhost:1883";
-    private String clientId = "new-sensor-data-server-lora";
-    private String topic = "application/#";
-    private String username = "";
-    private String password = "";
+    /** credentialKey별 실제 MQTT 자격증명. DB에는 이 key만 저장하고 password는 환경변수에만 둔다. */
+    private Map<String, Credentials> credentials = new HashMap<>();
 
     /** ChirpStack uplink event에서 devEUI를 찾을 JSON 경로. 실제 payload로 미확인 — 확인 전까지 가정값. */
     private String devEuiPath = "deviceInfo.devEui";
@@ -33,4 +31,26 @@ public class LoraMqttProperties {
 
     /** 오류 로그로 보낼 raw payload 최대 길이 (Manager DB 컬럼 한도인 4000보다 작거나 같게 유지) */
     private int errorRawPayloadMaxLength = 2000;
+
+    public Credentials credentialsFor(String credentialKey) {
+        if (credentialKey == null || credentialKey.isBlank()) {
+            return new Credentials();
+        }
+        return credentials.getOrDefault(credentialKey, new Credentials("", ""));
+    }
+
+    @Getter
+    @Setter
+    public static class Credentials {
+        private String username = "";
+        private String password = "";
+
+        public Credentials() {
+        }
+
+        public Credentials(String username, String password) {
+            this.username = username;
+            this.password = password;
+        }
+    }
 }

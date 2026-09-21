@@ -11,7 +11,6 @@ import net.vivans.dcim.module.lora.infrastructure.dto.LoraEndpointResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraModelPointResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraOverridePointResponse;
 import net.vivans.dcim.module.mqtt.config.LoraMqttProperties;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -28,7 +27,6 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "sensor.mqtt.lora.enabled", havingValue = "true")
 public class LoraConfigCache {
 
     private final ManagerLoraConfigClient managerLoraConfigClient;
@@ -118,6 +116,11 @@ public class LoraConfigCache {
     public java.util.Set<String> modelFieldsOf(Integer deviceModelId) {
         Map<String, LoraMappingRule> modelMappings = modelMappingsByModelId.get().get(deviceModelId);
         return modelMappings == null ? java.util.Set.of() : modelMappings.keySet();
+    }
+
+    /** Manager에 활성 LoRa endpoint가 하나라도 있으면 MQTT 수집을 시작할 수 있다. */
+    public boolean hasConfiguredEndpoint() {
+        return !endpointsByKey.get().isEmpty();
     }
 
     private static String key(LoraIdType idType, String normalizedExternalId) {

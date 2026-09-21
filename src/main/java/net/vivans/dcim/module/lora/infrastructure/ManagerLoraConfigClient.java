@@ -9,6 +9,8 @@ import net.vivans.dcim.module.lora.infrastructure.dto.LoraDeviceLookupResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraEndpointResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraModelPointResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraOverridePointResponse;
+import net.vivans.dcim.module.lora.infrastructure.dto.LoraMqttSourceResponse;
+import net.vivans.dcim.module.lora.infrastructure.dto.LoraMqttSourceStatusReportRequest;
 import net.vivans.dcim.module.manager.infrastructure.ManagerServiceProperties;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -77,6 +79,30 @@ public class ManagerLoraConfigClient {
             log.warn("[LORA_CONFIG_FETCH_ERROR] target=overrides exception={} message={}",
                     exception.getClass().getSimpleName(), exception.getMessage());
             return List.of();
+        }
+    }
+
+    /** MQTT 연결 단위 소스 목록. 장비 endpoint와 달리 source 하나가 여러 LoRa 장비 메시지를 받는다. */
+    public List<LoraMqttSourceResponse> findAllSources() {
+        if (!properties.isEnabled()) return List.of();
+        try {
+            LoraApiListResponse<LoraMqttSourceResponse> response = managerRestClient.get()
+                    .uri("/api/manager/lora/sources/bulk")
+                    .retrieve().body(new ParameterizedTypeReference<>() { });
+            return response == null || response.data() == null ? List.of() : response.data();
+        } catch (Exception exception) {
+            log.warn("[LORA_SOURCE_FETCH_ERROR] message={}", exception.getMessage());
+            return List.of();
+        }
+    }
+
+    public void reportSourceStatus(Integer sourceId, LoraMqttSourceStatusReportRequest request) {
+        if (!properties.isEnabled()) return;
+        try {
+            managerRestClient.post().uri("/api/manager/lora/sources/{sourceId}/status", sourceId)
+                    .body(request).retrieve().toBodilessEntity();
+        } catch (Exception exception) {
+            log.debug("[LORA_SOURCE_STATUS_REPORT_ERROR] sourceId={} message={}", sourceId, exception.getMessage());
         }
     }
 
