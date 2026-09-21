@@ -38,11 +38,11 @@ class SensorInfluxPointMapperTest {
 
         assertThat(points).hasSize(2);
         assertThat(points.get(0).toLineProtocol()).isEqualTo(
-                "dcim_sensor,device_id=9,device_type=PDU,location_code=RACK01,model_id=10,point_name=V,protocol=snmp value=219.0 "
+                "dcim_sensor,device_id=9,device_name=PDU-좌,device_type=PDU,location_code=RACK01,model_id=10,point_name=V,protocol=snmp value=219.0 "
                         + timestamp
         );
         assertThat(points.get(1).toLineProtocol()).isEqualTo(
-                "dcim_sensor,device_id=9,device_type=PDU,location_code=RACK01,model_id=10,point_name=W,protocol=snmp value=519.5 "
+                "dcim_sensor,device_id=9,device_name=PDU-좌,device_type=PDU,location_code=RACK01,model_id=10,point_name=W,protocol=snmp value=519.5 "
                         + timestamp
         );
     }
@@ -82,6 +82,7 @@ class SensorInfluxPointMapperTest {
         assertThat(points.get(0).toLineProtocol()).doesNotContain("location_code=");
         assertThat(points.get(0).toLineProtocol()).doesNotContain("model_id=");
         assertThat(points.get(0).toLineProtocol()).doesNotContain("device_type=");
+        assertThat(points.get(0).toLineProtocol()).doesNotContain("device_name=");
         assertThat(points.get(0).toLineProtocol()).doesNotContain("component=");
     }
 
