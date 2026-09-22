@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -31,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  *   2) devEUI가 없으면 deviceName으로 매칭 (레거시 DraginoDataService와 동일한 방식)
  *   3) 둘 다 없으면 오류로 기록하고, 식별자는 있지만 등록된 device와 매칭되지 않으면 DEBUG 로그만 남기고 무시
  *
- * 필드 매핑 우선순위: device별 override > device model 기본 매핑. 두 곳 다 없는 payload_field는
+ * 필드 매핑은 device model 기본 매핑을 사용한다. 매핑에 없는 payload_field는
  * "이 장비에서 관리하지 않는 필드"로 보고 조용히 건너뛴다(오류 아님). 매핑은 있는데 값 해석에 실패한
  * 경우만 오류로 기록한다. sentinel(327.67/409.5 등 "정상적으로 값 없음")은 오류가 아니다.
  */
@@ -78,8 +77,7 @@ public class LoraMqttMessageHandler {
         }
 
         LoraResolvedDevice device = resolved.get();
-        Set<String> fields = new HashSet<>(configCache.overrideFieldsOf(device.deviceId()));
-        fields.addAll(configCache.modelFieldsOf(device.deviceModelId()));
+        Set<String> fields = configCache.modelFieldsOf(device.deviceModelId());
         if (fields.isEmpty()) {
             log.warn("[LORA_MQTT_NO_MAPPING] deviceId={} deviceModelId={} topic={}",
                     device.deviceId(), device.deviceModelId(), topic);
@@ -90,7 +88,7 @@ public class LoraMqttMessageHandler {
         Map<String, Object> values = new HashMap<>();
         int failedCount = 0;
         for (String payloadField : fields) {
-            Optional<LoraMappingRule> mapping = configCache.resolveMapping(device.deviceId(), device.deviceModelId(), payloadField);
+            Optional<LoraMappingRule> mapping = configCache.resolveMapping(device.deviceModelId(), payloadField);
             if (mapping.isEmpty()) {
                 continue;
             }

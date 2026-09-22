@@ -74,9 +74,8 @@ class LoraMqttMessageHandlerTest {
         LoraResolvedDevice resolved = device(9, 10);
         when(configCache.resolveDevice(eq(LoraIdType.DEV_EUI), eq("24E124710C123456")))
                 .thenReturn(Optional.of(resolved));
-        when(configCache.overrideFieldsOf(9)).thenReturn(Set.of());
         when(configCache.modelFieldsOf(10)).thenReturn(Set.of("object.TempC_SHT"));
-        when(configCache.resolveMapping(9, 10, "object.TempC_SHT"))
+        when(configCache.resolveMapping(10, "object.TempC_SHT"))
                 .thenReturn(Optional.of(new LoraMappingRule("object.TempC_SHT", "TEMPERATURE", "TEMPERATURE", "C", null, null)));
         when(managerDeviceClient.findDevice(9)).thenReturn(Optional.empty());
 
@@ -99,9 +98,8 @@ class LoraMqttMessageHandlerTest {
         LoraResolvedDevice resolved = device(11, 12);
         when(configCache.resolveDevice(eq(LoraIdType.DEVICE_NAME), eq("dragino-lht65n-01")))
                 .thenReturn(Optional.of(resolved));
-        when(configCache.overrideFieldsOf(11)).thenReturn(Set.of());
         when(configCache.modelFieldsOf(12)).thenReturn(Set.of("object.TempC_SHT"));
-        when(configCache.resolveMapping(11, 12, "object.TempC_SHT"))
+        when(configCache.resolveMapping(12, "object.TempC_SHT"))
                 .thenReturn(Optional.of(new LoraMappingRule("object.TempC_SHT", "TEMPERATURE", "TEMPERATURE", "C", null, null)));
         when(managerDeviceClient.findDevice(11)).thenReturn(Optional.empty());
 
@@ -121,7 +119,6 @@ class LoraMqttMessageHandlerTest {
         LoraResolvedDevice resolved = device(13, 14);
         when(configCache.resolveDevice(eq(LoraIdType.DEVICE_NAME), eq("dragino-lht65n-02")))
                 .thenReturn(Optional.of(resolved));
-        when(configCache.overrideFieldsOf(13)).thenReturn(Set.of());
         when(configCache.modelFieldsOf(14)).thenReturn(Set.of());
 
         handler.handle("application/dev3/event/up", payload);
@@ -169,7 +166,6 @@ class LoraMqttMessageHandlerTest {
         LoraResolvedDevice resolved = device(20, 21);
         when(configCache.resolveDevice(eq(LoraIdType.DEV_EUI), eq("AABBCCDDEEFF0011")))
                 .thenReturn(Optional.of(resolved));
-        when(configCache.overrideFieldsOf(20)).thenReturn(Set.of());
         when(configCache.modelFieldsOf(21)).thenReturn(Set.of());
 
         handler.handle("application/dev5/event/up", payload);
@@ -188,9 +184,8 @@ class LoraMqttMessageHandlerTest {
         LoraResolvedDevice resolved = device(30, 31);
         when(configCache.resolveDevice(eq(LoraIdType.DEV_EUI), eq("AABBCCDDEEFF0022")))
                 .thenReturn(Optional.of(resolved));
-        when(configCache.overrideFieldsOf(30)).thenReturn(Set.of());
         when(configCache.modelFieldsOf(31)).thenReturn(Set.of("object.TempC_SHT"));
-        when(configCache.resolveMapping(30, 31, "object.TempC_SHT"))
+        when(configCache.resolveMapping(31, "object.TempC_SHT"))
                 .thenReturn(Optional.of(new LoraMappingRule("object.TempC_SHT", "TEMPERATURE", "TEMPERATURE", "C", null, null)));
 
         handler.handle("application/dev6/event/up", payload);

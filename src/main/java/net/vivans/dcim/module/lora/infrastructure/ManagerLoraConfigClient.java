@@ -8,7 +8,6 @@ import net.vivans.dcim.module.lora.infrastructure.dto.LoraApiResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraDeviceLookupResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraEndpointResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraModelPointResponse;
-import net.vivans.dcim.module.lora.infrastructure.dto.LoraOverridePointResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraMqttSourceResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraMqttSourceStatusReportRequest;
 import net.vivans.dcim.module.manager.infrastructure.ManagerServiceProperties;
@@ -19,7 +18,7 @@ import org.springframework.web.client.RestClient;
 import java.util.List;
 import java.util.Optional;
 
-/** Sensor Data가 Manager의 LoRa 설정(endpoint/모델매핑/override)을 읽어오는 클라이언트. */
+/** Sensor Data가 Manager의 LoRa 설정(endpoint/모델 매핑)을 읽어오는 클라이언트. */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -59,24 +58,6 @@ public class ManagerLoraConfigClient {
             return response == null || response.data() == null ? List.of() : response.data();
         } catch (Exception exception) {
             log.warn("[LORA_CONFIG_FETCH_ERROR] target=model-mappings exception={} message={}",
-                    exception.getClass().getSimpleName(), exception.getMessage());
-            return List.of();
-        }
-    }
-
-    public List<LoraOverridePointResponse> findAllEnabledOverrides() {
-        if (!properties.isEnabled()) {
-            return List.of();
-        }
-        try {
-            LoraApiListResponse<LoraOverridePointResponse> response = managerRestClient.get()
-                    .uri("/api/manager/lora/mappings/overrides/bulk")
-                    .retrieve()
-                    .body(new ParameterizedTypeReference<>() {
-                    });
-            return response == null || response.data() == null ? List.of() : response.data();
-        } catch (Exception exception) {
-            log.warn("[LORA_CONFIG_FETCH_ERROR] target=overrides exception={} message={}",
                     exception.getClass().getSimpleName(), exception.getMessage());
             return List.of();
         }
