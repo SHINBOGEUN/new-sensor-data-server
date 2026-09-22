@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
  * 식별 우선순위(레거시 운영 호환 포함):
  *   1) payload에 devEUI가 있으면 devEUI로 매칭
  *   2) devEUI가 없으면 deviceName으로 매칭 (레거시 DraginoDataService와 동일한 방식)
- *   3) 둘 다 없거나 등록된 device와 매칭되지 않으면 미등록 오류로 기록
+ *   3) 둘 다 없으면 오류로 기록하고, 식별자는 있지만 등록된 device와 매칭되지 않으면 DEBUG 로그만 남기고 무시
  *
  * 필드 매핑 우선순위: device별 override > device model 기본 매핑. 두 곳 다 없는 payload_field는
  * "이 장비에서 관리하지 않는 필드"로 보고 조용히 건너뛴다(오류 아님). 매핑은 있는데 값 해석에 실패한
@@ -72,9 +72,8 @@ public class LoraMqttMessageHandler {
 
         Optional<LoraResolvedDevice> resolved = configCache.resolveDevice(identified.idType(), identified.externalId());
         if (resolved.isEmpty()) {
-            log.warn("[LORA_MQTT_UNREGISTERED_DEVICE] idType={} externalId={} topic={}",
+            log.debug("[LORA_MQTT_IGNORED_DEVICE] reason=UNREGISTERED_DEVICE idType={} externalId={} topic={}",
                     identified.idType(), identified.externalId(), topic);
-            recordError(receivedAt, null, identified.externalId(), identified.idType(), "UNREGISTERED_DEVICE", rawPayloadForLog);
             return;
         }
 

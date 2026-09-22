@@ -146,7 +146,7 @@ class LoraMqttMessageHandlerTest {
     }
 
     @Test
-    void devEuiPresentButUnregistered_recordsErrorAndDoesNotFallBackToDeviceName() {
+    void devEuiPresentButUnregistered_ignoresWithoutErrorAndDoesNotFallBackToDeviceName() {
         byte[] payload = ("{\"deviceInfo\":{\"devEui\":\"24E124710C123456\",\"deviceName\":\"dragino-lht65n-03\"},"
                 + "\"object\":{\"TempC_SHT\":23.5}}").getBytes(StandardCharsets.UTF_8);
 
@@ -158,11 +158,7 @@ class LoraMqttMessageHandlerTest {
         verify(configCache).resolveDevice(LoraIdType.DEV_EUI, "24E124710C123456");
         verify(configCache, never()).resolveDevice(eq(LoraIdType.DEVICE_NAME), any());
 
-        ArgumentCaptor<LoraIngestErrorLogRequest> captor = ArgumentCaptor.forClass(LoraIngestErrorLogRequest.class);
-        verify(errorLogClient).record(captor.capture());
-        assertThat(captor.getValue().reason()).isEqualTo("UNREGISTERED_DEVICE");
-        assertThat(captor.getValue().idType()).isEqualTo(LoraIdType.DEV_EUI);
-        assertThat(captor.getValue().externalId()).isEqualTo("24E124710C123456");
+        verify(errorLogClient, never()).record(any());
         verify(influxWriteService, never()).writeSensorPoints(anyInt(), any(), any(), any(), any(), any());
     }
 
