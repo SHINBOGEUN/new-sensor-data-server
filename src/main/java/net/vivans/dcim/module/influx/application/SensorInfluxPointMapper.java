@@ -27,7 +27,7 @@ final class SensorInfluxPointMapper {
             Map<String, Object> values,
             Instant collectedAt
     ) {
-        return toPoints(measurement, deviceId, device, values, collectedAt, null);
+        return toPoints(measurement, deviceId, device, values, collectedAt, null, PROTOCOL_SNMP);
     }
 
     static List<Point> toPoints(
@@ -38,10 +38,24 @@ final class SensorInfluxPointMapper {
             Instant collectedAt,
             String component
     ) {
+        return toPoints(measurement, deviceId, device, values, collectedAt, component, PROTOCOL_SNMP);
+    }
+
+    /** protocol을 호출 측에서 지정한다 (예: LoRa/MQTT 수집 경로는 "mqtt"). 기존 두 오버로드는 전부 snmp로 고정 호출한다. */
+    static List<Point> toPoints(
+            String measurement,
+            int deviceId,
+            ManagerDeviceResponse device,
+            Map<String, Object> values,
+            Instant collectedAt,
+            String component,
+            String protocol
+    ) {
         if (values == null || values.isEmpty()) {
             return List.of();
         }
         Instant time = collectedAt == null ? Instant.now() : collectedAt;
+        String resolvedProtocol = (protocol == null || protocol.isBlank()) ? PROTOCOL_SNMP : protocol;
         List<Point> points = new ArrayList<>();
         for (Map.Entry<String, Object> entry : values.entrySet()) {
             if (!isValidTagValue(entry.getKey())) {
@@ -54,11 +68,14 @@ final class SensorInfluxPointMapper {
             Point point = Point.measurement(measurement)
                     .addTag("device_id", String.valueOf(deviceId))
                     .addTag("point_name", entry.getKey())
-                    .addTag("protocol", PROTOCOL_SNMP)
+                    .addTag("protocol", resolvedProtocol)
                     .addField("value", value)
                     .time(time, WritePrecision.MS);
             if (hasText(component)) {
                 point.addTag("component", component);
+            }
+            if (device != null && hasText(device.name())) {
+                point.addTag("device_name", device.name());
             }
             if (device != null && device.modelId() != null) {
                 point.addTag("model_id", String.valueOf(device.modelId()));

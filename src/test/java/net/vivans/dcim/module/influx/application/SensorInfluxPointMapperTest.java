@@ -38,11 +38,11 @@ class SensorInfluxPointMapperTest {
 
         assertThat(points).hasSize(2);
         assertThat(points.get(0).toLineProtocol()).isEqualTo(
-                "dcim_sensor,device_id=9,device_type=PDU,location_code=RACK01,model_id=10,point_name=V,protocol=snmp value=219.0 "
+                "dcim_sensor,device_id=9,device_name=PDU-좌,device_type=PDU,location_code=RACK01,model_id=10,point_name=V,protocol=snmp value=219.0 "
                         + timestamp
         );
         assertThat(points.get(1).toLineProtocol()).isEqualTo(
-                "dcim_sensor,device_id=9,device_type=PDU,location_code=RACK01,model_id=10,point_name=W,protocol=snmp value=519.5 "
+                "dcim_sensor,device_id=9,device_name=PDU-좌,device_type=PDU,location_code=RACK01,model_id=10,point_name=W,protocol=snmp value=519.5 "
                         + timestamp
         );
     }
@@ -82,7 +82,41 @@ class SensorInfluxPointMapperTest {
         assertThat(points.get(0).toLineProtocol()).doesNotContain("location_code=");
         assertThat(points.get(0).toLineProtocol()).doesNotContain("model_id=");
         assertThat(points.get(0).toLineProtocol()).doesNotContain("device_type=");
+        assertThat(points.get(0).toLineProtocol()).doesNotContain("device_name=");
         assertThat(points.get(0).toLineProtocol()).doesNotContain("component=");
+    }
+
+    @Test
+    void usesCallerSuppliedProtocolTagForLoraPath() {
+        List<Point> points = SensorInfluxPointMapper.toPoints(
+                "dcim_sensor",
+                9,
+                null,
+                Map.of("TEMPERATURE", 23.5),
+                COLLECTED_AT,
+                null,
+                "mqtt"
+        );
+
+        assertThat(points).hasSize(1);
+        assertThat(points.get(0).toLineProtocol()).contains("protocol=mqtt");
+        assertThat(points.get(0).toLineProtocol()).doesNotContain("protocol=snmp");
+    }
+
+    @Test
+    void blankProtocolFallsBackToSnmp() {
+        List<Point> points = SensorInfluxPointMapper.toPoints(
+                "dcim_sensor",
+                9,
+                null,
+                Map.of("V", 220.0),
+                COLLECTED_AT,
+                null,
+                "  "
+        );
+
+        assertThat(points).hasSize(1);
+        assertThat(points.get(0).toLineProtocol()).contains("protocol=snmp");
     }
 
     @Test

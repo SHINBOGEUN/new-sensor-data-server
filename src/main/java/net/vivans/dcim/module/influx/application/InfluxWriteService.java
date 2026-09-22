@@ -48,6 +48,22 @@ public class InfluxWriteService {
             Map<String, Object> values,
             Instant collectedAt
     ) {
+        writeSensorPoints(deviceId, device, values, collectedAt, null, null);
+    }
+
+    /**
+     * protocol/component을 호출 측에서 지정할 수 있는 오버로드.
+     * LoRa/MQTT 수집 경로는 protocol="mqtt" 로 호출한다. 기존 호출부는 위 4-arg 오버로드를 그대로 사용하며
+     * 내부적으로 protocol=null(=snmp로 처리)로 위임되므로 동작 변화가 없다.
+     */
+    public void writeSensorPoints(
+            int deviceId,
+            ManagerDeviceResponse device,
+            Map<String, Object> values,
+            Instant collectedAt,
+            String component,
+            String protocol
+    ) {
         if (!properties.isEnabled() || writeApi == null) {
             log.debug("Influx write skipped (disabled) deviceId={}", deviceId);
             return;
@@ -57,14 +73,16 @@ public class InfluxWriteService {
                 deviceId,
                 device,
                 values,
-                collectedAt
+                collectedAt,
+                component,
+                protocol == null || protocol.isBlank() ? "snmp" : protocol
         );
         if (points.isEmpty()) {
             log.warn("Influx write skipped (no valid points) deviceId={}", deviceId);
             return;
         }
         writeApi.writePoints(points);
-        log.info("Influx write deviceId={} {}", deviceId, formatKeyValues(values));
+        log.info("Influx write deviceId={} protocol={} {}", deviceId, protocol, formatKeyValues(values));
     }
 
     public void writePue(Integer definitionId, Integer configVersion, Double value, Double totalPower, Double coolerPower, Instant collectedAt) {
