@@ -29,9 +29,6 @@ public class LoraMqttProperties {
     /** Manager 설정(endpoint/매핑) TTL 캐시 갱신 주기(ms) */
     private long configCacheRefreshMs = 300_000L;
 
-    /** 오류 로그로 보낼 raw payload 최대 길이 (Manager DB 컬럼 한도인 4000보다 작거나 같게 유지) */
-    private int errorRawPayloadMaxLength = 2000;
-
     public Credentials credentialsFor(String credentialKey) {
         if (credentialKey == null || credentialKey.isBlank()) {
             return new Credentials();
