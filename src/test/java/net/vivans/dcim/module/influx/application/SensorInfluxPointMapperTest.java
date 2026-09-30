@@ -104,6 +104,16 @@ class SensorInfluxPointMapperTest {
     }
 
     @Test
+    void usesModbusProtocolForScheduledPoint() {
+        List<Point> points = SensorInfluxPointMapper.toPoints(
+                "dcim_sensor", 101, null, Map.of("POWER", 1250.5), COLLECTED_AT, null, "modbus");
+
+        assertThat(points).hasSize(1);
+        assertThat(points.get(0).toLineProtocol()).contains("device_id=101", "point_name=POWER",
+                "protocol=modbus", "value=1250.5");
+    }
+
+    @Test
     void blankProtocolFallsBackToSnmp() {
         List<Point> points = SensorInfluxPointMapper.toPoints(
                 "dcim_sensor",

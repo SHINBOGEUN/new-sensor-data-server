@@ -40,6 +40,7 @@ public class SensorMqttMessageHandler {
                 return;
             }
             SensorMqttPayload message = objectMapper.readValue(payload, SensorMqttPayload.class);
+            String protocol = message.resolvedProtocol();
             if (message.data() == null || message.data().isEmpty()) {
                 log.debug("MQTT payload has no data topic={}", topic);
                 return;
@@ -48,12 +49,13 @@ public class SensorMqttMessageHandler {
             for (Map.Entry<String, Map<String, Object>> entry : message.data().entrySet()) {
                 int deviceId = Integer.parseInt(entry.getKey());
                 ManagerDeviceResponse device = managerDeviceClient.findDevice(deviceId).orElse(null);
-                influxWriteService.writeSensorPoints(deviceId, device, entry.getValue(), collectedAt);
+                influxWriteService.writeSensorPoints(deviceId, device, entry.getValue(), collectedAt, null, protocol);
                 log.info(
-                        "sensor message processed deviceId={} pointCount={} type={}",
+                        "sensor message processed deviceId={} pointCount={} type={} protocol={}",
                         deviceId,
                         entry.getValue() == null ? 0 : entry.getValue().size(),
-                        message.type()
+                        message.type(),
+                        protocol
                 );
             }
         } catch (Exception exception) {
