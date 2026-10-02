@@ -115,6 +115,32 @@ public class InfluxWriteService {
         }
     }
 
+    public void writeCalculated(Integer definitionId, Integer configVersion, Double value,
+                                Map<String, Double> inputs, Instant collectedAt) {
+        if (!properties.isEnabled() || writeApi == null) return;
+        if (definitionId == null || value == null || !Double.isFinite(value)
+                || inputs == null || inputs.isEmpty() || inputs.values().stream().anyMatch(v -> v == null || !Double.isFinite(v))) {
+            throw new IllegalArgumentException("invalid calculated metric payload");
+        }
+        Point point = Point.measurement(properties.getMeasurement())
+                .addTag("metric_kind", "calculated")
+                .addTag("calculated_metric_id", String.valueOf(definitionId))
+                .addTag("calculated_config_version", String.valueOf(configVersion == null ? 1 : configVersion))
+                .addTag("point_name", "CALCULATED")
+                .addTag("protocol", "derived")
+                .addField("value", value)
+                .time(collectedAt == null ? Instant.now() : collectedAt, com.influxdb.client.domain.WritePrecision.MS);
+        for (Map.Entry<String, Double> input : inputs.entrySet()) {
+            if (input.getKey() == null || !input.getKey().matches("[A-Za-z][A-Za-z0-9_]{0,31}")) {
+                throw new IllegalArgumentException("invalid calculated source alias");
+            }
+            point.addField("input_" + input.getKey(), input.getValue());
+        }
+        writeApi.writePoint(point);
+        log.info("[CALCULATED_INFLUX_END] definitionId={} version={} sourceCount={}",
+                definitionId, configVersion, inputs.size());
+    }
+
     /** 실제 적재되는 point만 `key=value` 형태로 연결 */
     private static String formatKeyValues(Map<String, Object> values) {
         if (values == null || values.isEmpty()) {

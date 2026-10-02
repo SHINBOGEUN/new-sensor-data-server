@@ -8,6 +8,7 @@ import net.vivans.dcim.module.manager.infrastructure.ManagerDeviceClient;
 import net.vivans.dcim.module.manager.infrastructure.dto.ManagerDeviceResponse;
 import net.vivans.dcim.module.mqtt.domain.SensorMqttPayload;
 import net.vivans.dcim.module.mqtt.domain.PueMqttPayload;
+import net.vivans.dcim.module.mqtt.config.SensorMqttProperties;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -26,17 +27,25 @@ public class SensorMqttMessageHandler {
     private final ObjectMapper objectMapper;
     private final ManagerDeviceClient managerDeviceClient;
     private final InfluxWriteService influxWriteService;
+    private final SensorMqttProperties mqttProperties;
 
     public void handle(String topic, byte[] payload) {
         long startedAt = System.nanoTime();
         try {
-            if (topic.endsWith("/pue")) {
+            if (topic.equals(mqttProperties.getPueTopic())) {
                 PueMqttPayload pue = objectMapper.readValue(payload, PueMqttPayload.class);
-                log.info("[PUE_MQTT_RECEIVE_START] definitionId={} configVersion={} topic={}",
-                        pue.pueDefinitionId(), pue.configVersion(), topic);
-                influxWriteService.writePue(pue.pueDefinitionId(), pue.configVersion(), pue.value(), pue.totalPower(), pue.coolerPower(), parseCollectedAt(pue.datetime()));
-                log.info("[PUE_MQTT_RECEIVE_END] definitionId={} topic={} elapsedMs={}",
-                        pue.pueDefinitionId(), topic, elapsedMillis(startedAt));
+                String kind = pue.inputs() == null ? "PUE_LEGACY" : "CALCULATED";
+                log.info("[DERIVED_MQTT_RECEIVE_START] kind={} definitionId={} configVersion={} topic={}",
+                        kind, pue.pueDefinitionId(), pue.configVersion(), topic);
+                if (pue.inputs() != null) {
+                    influxWriteService.writeCalculated(pue.pueDefinitionId(), pue.configVersion(), pue.value(),
+                            pue.inputs(), parseCollectedAt(pue.datetime()));
+                } else {
+                    influxWriteService.writePue(pue.pueDefinitionId(), pue.configVersion(), pue.value(),
+                            pue.totalPower(), pue.coolerPower(), parseCollectedAt(pue.datetime()));
+                }
+                log.info("[DERIVED_MQTT_RECEIVE_END] kind={} definitionId={} topic={} elapsedMs={}",
+                        kind, pue.pueDefinitionId(), topic, elapsedMillis(startedAt));
                 return;
             }
             SensorMqttPayload message = objectMapper.readValue(payload, SensorMqttPayload.class);
@@ -71,6 +80,11 @@ public class SensorMqttMessageHandler {
     private Instant parseCollectedAt(String datetime) {
         if (datetime == null || datetime.isBlank()) {
             return Instant.now();
+        }
+        try {
+            return Instant.parse(datetime);
+        } catch (Exception ignored) {
+            // 기존 센서 payload의 시간대 없는 datetime 형식은 아래에서 처리한다.
         }
         try {
             LocalDateTime localDateTime = LocalDateTime.parse(datetime, DATETIME);
