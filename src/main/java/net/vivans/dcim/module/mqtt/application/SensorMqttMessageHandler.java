@@ -7,7 +7,7 @@ import net.vivans.dcim.module.influx.application.InfluxWriteService;
 import net.vivans.dcim.module.manager.infrastructure.ManagerDeviceClient;
 import net.vivans.dcim.module.manager.infrastructure.dto.ManagerDeviceResponse;
 import net.vivans.dcim.module.mqtt.domain.SensorMqttPayload;
-import net.vivans.dcim.module.mqtt.domain.PueMqttPayload;
+import net.vivans.dcim.module.mqtt.domain.CalculatedMqttPayload;
 import net.vivans.dcim.module.mqtt.config.SensorMqttProperties;
 import org.springframework.stereotype.Service;
 
@@ -32,20 +32,14 @@ public class SensorMqttMessageHandler {
     public void handle(String topic, byte[] payload) {
         long startedAt = System.nanoTime();
         try {
-            if (topic.equals(mqttProperties.getPueTopic())) {
-                PueMqttPayload pue = objectMapper.readValue(payload, PueMqttPayload.class);
-                String kind = pue.inputs() == null ? "PUE_LEGACY" : "CALCULATED";
-                log.info("[DERIVED_MQTT_RECEIVE_START] kind={} definitionId={} configVersion={} topic={}",
-                        kind, pue.pueDefinitionId(), pue.configVersion(), topic);
-                if (pue.inputs() != null) {
-                    influxWriteService.writeCalculated(pue.pueDefinitionId(), pue.configVersion(), pue.value(),
-                            pue.inputs(), parseCollectedAt(pue.datetime()));
-                } else {
-                    influxWriteService.writePue(pue.pueDefinitionId(), pue.configVersion(), pue.value(),
-                            pue.totalPower(), pue.coolerPower(), parseCollectedAt(pue.datetime()));
-                }
-                log.info("[DERIVED_MQTT_RECEIVE_END] kind={} definitionId={} topic={} elapsedMs={}",
-                        kind, pue.pueDefinitionId(), topic, elapsedMillis(startedAt));
+            if (topic.equals(mqttProperties.getCalculatedTopic())) {
+                CalculatedMqttPayload calculated = objectMapper.readValue(payload, CalculatedMqttPayload.class);
+                log.info("[CALCULATED_MQTT_RECEIVE_START] metricId={} configVersion={} topic={}",
+                        calculated.calculatedMetricId(), calculated.configVersion(), topic);
+                influxWriteService.writeCalculated(calculated.calculatedMetricId(), calculated.configVersion(),
+                        calculated.value(), calculated.inputs(), parseCollectedAt(calculated.datetime()));
+                log.info("[CALCULATED_MQTT_RECEIVE_END] metricId={} topic={} elapsedMs={}",
+                        calculated.calculatedMetricId(), topic, elapsedMillis(startedAt));
                 return;
             }
             SensorMqttPayload message = objectMapper.readValue(payload, SensorMqttPayload.class);

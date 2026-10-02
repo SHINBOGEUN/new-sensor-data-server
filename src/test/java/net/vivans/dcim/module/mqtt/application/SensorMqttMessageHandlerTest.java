@@ -24,7 +24,7 @@ class SensorMqttMessageHandlerTest {
     @Test
     void routesCalculatedSnapshotWithoutDeviceLookup() {
         handler.handle("dcim/derived/calculated", bytes("""
-                {"pueDefinitionId":3,"configVersion":2,"value":1.5,"inputs":{"FACILITY":150,"IT":100}}
+                {"calculatedMetricId":3,"configVersion":2,"value":1.5,"inputs":{"FACILITY":150,"IT":100}}
                 """));
         verify(influx).writeCalculated(eq(3), eq(2), eq(1.5),
                 eq(Map.of("FACILITY", 150.0, "IT", 100.0)), any(Instant.class));
@@ -34,7 +34,7 @@ class SensorMqttMessageHandlerTest {
     @Test
     void preservesUtcTimestampFromCalculatedMessage() {
         handler.handle("dcim/derived/calculated", bytes("""
-                {"datetime":"2026-10-01T15:00:00Z","pueDefinitionId":4,"configVersion":1,
+                {"datetime":"2026-10-01T15:00:00Z","calculatedMetricId":4,"configVersion":1,
                  "value":12.5,"inputs":{"POWER":12.5}}
                 """));
 
