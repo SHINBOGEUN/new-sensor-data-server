@@ -3,6 +3,7 @@ package net.vivans.dcim.module.mqtt.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.vivans.dcim.module.influx.application.InfluxWriteService;
 import net.vivans.dcim.module.manager.infrastructure.ManagerDeviceClient;
+import net.vivans.dcim.module.mqtt.config.SensorMqttProperties;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -17,7 +18,29 @@ class SensorMqttMessageHandlerTest {
 
     private final ManagerDeviceClient manager = mock(ManagerDeviceClient.class);
     private final InfluxWriteService influx = mock(InfluxWriteService.class);
-    private final SensorMqttMessageHandler handler = new SensorMqttMessageHandler(new ObjectMapper(), manager, influx);
+    private final SensorMqttMessageHandler handler = new SensorMqttMessageHandler(new ObjectMapper(), manager, influx,
+            new SensorMqttProperties());
+
+    @Test
+    void routesCalculatedSnapshotWithoutDeviceLookup() {
+        handler.handle("dcim/derived/calculated", bytes("""
+                {"pueDefinitionId":3,"configVersion":2,"value":1.5,"inputs":{"FACILITY":150,"IT":100}}
+                """));
+        verify(influx).writeCalculated(eq(3), eq(2), eq(1.5),
+                eq(Map.of("FACILITY", 150.0, "IT", 100.0)), any(Instant.class));
+        verifyNoInteractions(manager);
+    }
+
+    @Test
+    void preservesUtcTimestampFromCalculatedMessage() {
+        handler.handle("dcim/derived/calculated", bytes("""
+                {"datetime":"2026-10-01T15:00:00Z","pueDefinitionId":4,"configVersion":1,
+                 "value":12.5,"inputs":{"POWER":12.5}}
+                """));
+
+        verify(influx).writeCalculated(eq(4), eq(1), eq(12.5), eq(Map.of("POWER", 12.5)),
+                eq(Instant.parse("2026-10-01T15:00:00Z")));
+    }
 
     @Test
     void forwardsModbusProtocolToExistingInfluxWriter() {
