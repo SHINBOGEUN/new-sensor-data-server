@@ -10,7 +10,7 @@
     </parent>
     <groupId>net.vivans</groupId>
     <artifactId>new-sensor-data-server</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>new-sensor-data-server</name>
     <description>DCIM sensor data server — MQTT subscribe, manager meta lookup, InfluxDB write</description>
 
