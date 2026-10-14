@@ -14,6 +14,8 @@ public class SensorMqttProperties {
     private String clientId = "new-sensor-data-server";
     private String topic = "dcim/sensor/data";
     private String pueTopic = "dcim/derived/pue";
+    private String agentTopic = "dcim/agent/+/telemetry";
+    private long configTtlMs = 60000;
     private String username = "";
     private String password = "";
 }

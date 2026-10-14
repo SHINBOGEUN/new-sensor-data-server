@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
         exclude = UserDetailsServiceAutoConfiguration.class
 )
 @ConfigurationPropertiesScan("net.vivans.dcim")
+@org.springframework.scheduling.annotation.EnableScheduling
 public class SensorDataServerApplication {
 
     public static void main(String[] args) {

@@ -8,13 +8,13 @@ influx:
 
 sensor:
   mqtt:
-    enabled: true
-    broker-url: tcp://localhost:1883
-    client-id: new-sensor-data-server
-    topic: dcim/sensor/data
+    enabled: ${MQTT_ENABLED:true}
+    broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+    client-id: ${MQTT_CLIENT_ID:new-sensor-data-server}
+    topic: ${MQTT_TOPIC:dcim/sensor/data}
 
 manager:
   service:
-    url: http://localhost:8080
-    api-key: sensor-data-service
-    enabled: true
+    url: ${MANAGER_SERVICE_URL:http://localhost:8080}
+    api-key: ${MANAGER_API_KEY:sensor-data-service}
+    enabled: ${MANAGER_LOOKUP_ENABLED:true}

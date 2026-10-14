@@ -48,6 +48,8 @@ sensor:
     client-id: ${MQTT_CLIENT_ID:new-sensor-data-server}
     topic: ${MQTT_TOPIC:dcim/sensor/data}
     pue-topic: ${MQTT_PUE_TOPIC:dcim/derived/pue}
+    agent-topic: ${MQTT_AGENT_TOPIC:dcim/agent/+/telemetry}
+    config-ttl-ms: ${MQTT_CONFIG_TTL_MS:60000}
     username: ${MQTT_USERNAME:}
     password: ${MQTT_PASSWORD:}
 

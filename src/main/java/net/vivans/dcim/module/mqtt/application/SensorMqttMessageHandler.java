@@ -26,6 +26,8 @@ public class SensorMqttMessageHandler {
     private final ObjectMapper objectMapper;
     private final ManagerDeviceClient managerDeviceClient;
     private final InfluxWriteService influxWriteService;
+    private final AgentMqttMessageHandler agentMqttMessageHandler;
+    private final net.vivans.dcim.module.lora.application.LoraMqttMessageHandler loraMqttMessageHandler;
 
     public void handle(String topic, byte[] payload) {
         long startedAt = System.nanoTime();
@@ -39,7 +41,16 @@ public class SensorMqttMessageHandler {
                         pue.pueDefinitionId(), topic, elapsedMillis(startedAt));
                 return;
             }
-            SensorMqttPayload message = objectMapper.readValue(payload, SensorMqttPayload.class);
+            var root = objectMapper.readTree(payload);
+            if (root.has("deviceInfo")) {
+                if (root.path("deviceInfo").hasNonNull("identityType")) {
+                    agentMqttMessageHandler.handle(root);
+                } else {
+                    loraMqttMessageHandler.handle(topic, payload);
+                }
+                return;
+            }
+            SensorMqttPayload message = objectMapper.treeToValue(root, SensorMqttPayload.class);
             if (message.data() == null || message.data().isEmpty()) {
                 log.debug("MQTT payload has no data topic={}", topic);
                 return;
