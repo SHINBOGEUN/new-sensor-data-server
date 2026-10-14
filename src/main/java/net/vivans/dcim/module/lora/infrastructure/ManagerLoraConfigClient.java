@@ -11,6 +11,7 @@ import net.vivans.dcim.module.lora.infrastructure.dto.LoraModelPointResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraOverridePointResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraMqttSourceResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraMqttSourceStatusReportRequest;
+import net.vivans.dcim.module.manager.infrastructure.ManagerConfigUnavailableException;
 import net.vivans.dcim.module.manager.infrastructure.ManagerServiceProperties;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
@@ -19,7 +20,12 @@ import org.springframework.web.client.RestClient;
 import java.util.List;
 import java.util.Optional;
 
-/** 공통 MQTT 설정을 기존 LoRa 처리 모델로 변환한다. LoRa 소스 관리는 기존 API를 유지한다. */
+/**
+ * 공통 MQTT 설정을 기존 LoRa 처리 모델로 변환한다. LoRa 소스 관리는 기존 API를 유지한다.
+ *
+ * 설정 조회가 실패하면 빈 목록 대신 {@link ManagerConfigUnavailableException}을 던진다.
+ * 빈 목록으로 바꾸면 호출 측이 "설정이 없다"로 읽어 정상 수집까지 중단한다.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -43,7 +49,26 @@ public class ManagerLoraConfigClient {
         } catch (Exception exception) {
             log.warn("[LORA_CONFIG_FETCH_ERROR] target=endpoints exception={} message={}",
                     exception.getClass().getSimpleName(), exception.getMessage());
-            return List.of();
+            throw new ManagerConfigUnavailableException("endpoints", exception);
+        }
+    }
+
+    /**
+     * 유형과 무관한 활성 식별값 수. MQTT 구독을 시작할지 판단할 때 사용한다.
+     * LoRa(DEV_EUI/DEVICE_NAME)만 세면 MAC만 등록된 환경에서 구독이 시작되지 않는다.
+     */
+    public int countEnabledIdentities() {
+        if (!properties.isEnabled()) {
+            return 0;
+        }
+        try {
+            return (int) mqttClient.identities().stream()
+                    .filter(item -> item.enabled() && item.deviceId() != null)
+                    .count();
+        } catch (Exception exception) {
+            log.warn("[LORA_CONFIG_FETCH_ERROR] target=identities exception={} message={}",
+                    exception.getClass().getSimpleName(), exception.getMessage());
+            throw new ManagerConfigUnavailableException("identities", exception);
         }
     }
 
@@ -63,7 +88,7 @@ public class ManagerLoraConfigClient {
         } catch (Exception exception) {
             log.warn("[LORA_CONFIG_FETCH_ERROR] target=model-mappings exception={} message={}",
                     exception.getClass().getSimpleName(), exception.getMessage());
-            return List.of();
+            throw new ManagerConfigUnavailableException("model-mappings", exception);
         }
     }
 
@@ -82,8 +107,9 @@ public class ManagerLoraConfigClient {
                     .retrieve().body(new ParameterizedTypeReference<>() { });
             return response == null || response.data() == null ? List.of() : response.data();
         } catch (Exception exception) {
-            log.warn("[LORA_SOURCE_FETCH_ERROR] message={}", exception.getMessage());
-            return List.of();
+            log.warn("[LORA_SOURCE_FETCH_ERROR] exception={} message={}",
+                    exception.getClass().getSimpleName(), exception.getMessage());
+            throw new ManagerConfigUnavailableException("sources", exception);
         }
     }
 

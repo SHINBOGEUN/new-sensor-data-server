@@ -8,6 +8,7 @@ import net.vivans.dcim.module.manager.infrastructure.ManagerMqttClient;
 import net.vivans.dcim.module.manager.infrastructure.ManagerServiceProperties;
 import net.vivans.dcim.module.manager.infrastructure.dto.*;
 import net.vivans.dcim.module.mqtt.config.SensorMqttProperties;
+import net.vivans.dcim.module.mqtt.domain.MqttExternalIdNormalizer;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -75,21 +76,9 @@ public class MqttConfigurationService {
         }
     }
 
+    /** LoRa 경로와 같은 규칙을 쓰도록 공통 정규화에 위임한다. */
     public static String normalize(String type, String value) {
-        if (type == null || value == null || value.isBlank() || value.length() > 255) {
-            throw new IllegalArgumentException("MQTT identity type and value are required");
-        }
-        String normalized = switch (type) {
-            case "MAC", "DEV_EUI", "DEVICE_NAME" -> value.trim().toUpperCase(Locale.ROOT)
-                    .replace(":", "").replace("-", "").replace("_", "").replace(" ", "");
-            case "UUID" -> UUID.fromString(value.trim()).toString();
-            case "SERIAL" -> value.trim();
-            default -> throw new IllegalArgumentException("Unsupported MQTT identity type");
-        };
-        if (normalized.isBlank() || ("MAC".equals(type) && !normalized.matches("[0-9A-F]{12}"))) {
-            throw new IllegalArgumentException("Invalid MQTT external identity");
-        }
-        return normalized;
+        return MqttExternalIdNormalizer.normalize(type, value);
     }
 
     private record Key(String type, String externalId) {}

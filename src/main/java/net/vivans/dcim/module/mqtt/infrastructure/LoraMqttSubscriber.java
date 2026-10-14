@@ -9,6 +9,7 @@ import net.vivans.dcim.module.lora.application.LoraMqttMessageHandler;
 import net.vivans.dcim.module.lora.infrastructure.ManagerLoraConfigClient;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraMqttSourceResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraMqttSourceStatusReportRequest;
+import net.vivans.dcim.module.manager.infrastructure.ManagerConfigUnavailableException;
 import net.vivans.dcim.module.mqtt.config.LoraMqttProperties;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
@@ -52,18 +53,31 @@ public class LoraMqttSubscriber {
     /** Manager의 즉시 이벤트가 유실되어도 1분마다 원하는 상태로 맞춘다. */
     @Scheduled(fixedDelayString = "${sensor.mqtt.lora.source-sync-fixed-delay-ms:60000}")
     public synchronized void refreshSources() {
-        // 기능 on/off는 환경변수가 아닌 Manager의 활성 LoRa endpoint 존재 여부가 기준이다.
+        // 기능 on/off는 환경변수가 아닌 Manager의 활성 식별값 존재 여부가 기준이다.
         loraConfigCache.refresh();
-        if (!loraConfigCache.hasConfiguredEndpoint()) {
+        // 설정을 못 받은 상태에서 해제하면 Manager 재배포만으로 수집이 끊긴다. 직전 구독을 유지한다.
+        if (!loraConfigCache.isLoaded()) {
+            log.warn("[LORA_MQTT_SOURCE_RECONCILE_SKIPPED] reason=manager_config_unavailable connectedClients={}",
+                    sources.size());
+            return;
+        }
+        if (!loraConfigCache.hasAnyIdentity()) {
             if (!sources.isEmpty()) {
                 sources.values().forEach(source -> source.close("NOT_SYNCED"));
                 sources.clear();
             }
-            log.info("[LORA_MQTT_SUBSCRIBE_SKIPPED] reason=no_enabled_lora_endpoint");
+            log.info("[LORA_MQTT_SUBSCRIBE_SKIPPED] reason=no_enabled_identity");
             return;
         }
 
-        List<LoraMqttSourceResponse> configuredSources = managerLoraConfigClient.findAllSources();
+        List<LoraMqttSourceResponse> configuredSources;
+        try {
+            configuredSources = managerLoraConfigClient.findAllSources();
+        } catch (ManagerConfigUnavailableException exception) {
+            log.warn("[LORA_MQTT_SOURCE_RECONCILE_SKIPPED] reason=source_list_unavailable connectedClients={} message={}",
+                    sources.size(), exception.getMessage());
+            return;
+        }
         if (configuredSources.isEmpty()) {
             log.info("[LORA_MQTT_SUBSCRIBE_SKIPPED] reason=no_mqtt_source");
         }

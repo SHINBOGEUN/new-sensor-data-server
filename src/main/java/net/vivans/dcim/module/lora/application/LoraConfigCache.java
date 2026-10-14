@@ -3,20 +3,23 @@ package net.vivans.dcim.module.lora.application;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.vivans.dcim.module.lora.domain.LoraExternalIdNormalizer;
 import net.vivans.dcim.module.lora.domain.LoraIdType;
 import net.vivans.dcim.module.lora.infrastructure.ManagerLoraConfigClient;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraDeviceLookupResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraEndpointResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraModelPointResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraOverridePointResponse;
+import net.vivans.dcim.module.manager.infrastructure.ManagerConfigUnavailableException;
 import net.vivans.dcim.module.mqtt.config.LoraMqttProperties;
+import net.vivans.dcim.module.mqtt.domain.MqttExternalIdNormalizer;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -38,22 +41,31 @@ public class LoraConfigCache {
             new AtomicReference<>(Map.of());
     private final AtomicReference<Map<Integer, Map<String, LoraMappingRule>>> overridesByDeviceId =
             new AtomicReference<>(Map.of());
+    /** 한 번이라도 Manager 설정을 받아왔는지. 조회 실패와 "설정이 비어 있음"을 구분한다. */
+    private final AtomicBoolean loaded = new AtomicBoolean(false);
+    /** 유형 무관 활성 식별값 수. 0이어야만 수집 대상이 정말 없는 상태다. */
+    private final AtomicInteger identityCount = new AtomicInteger(0);
 
     @PostConstruct
     public void initialLoad() {
         refresh();
     }
 
+    /**
+     * 세 설정을 모두 받은 뒤에만 캐시를 교체한다. 중간에 실패하면 직전 설정을 그대로 두어
+     * Manager 재배포·일시 장애로 수집이 끊기지 않게 한다.
+     */
     @Scheduled(fixedDelayString = "${sensor.mqtt.lora.config-cache-refresh-ms:300000}")
     public void refresh() {
         try {
+            int identities = managerLoraConfigClient.countEnabledIdentities();
+
             Map<String, LoraResolvedDevice> endpoints = new HashMap<>();
             for (LoraEndpointResponse endpoint : managerLoraConfigClient.findAllEnabledEndpoints()) {
                 String key = key(endpoint.idType(), endpoint.normalizedExternalId());
                 endpoints.put(key, new LoraResolvedDevice(
                         endpoint.deviceId(), endpoint.deviceName(), endpoint.deviceModelId(), endpoint.deviceModelName()));
             }
-            endpointsByKey.set(Map.copyOf(endpoints));
 
             Map<Integer, Map<String, LoraMappingRule>> modelMappings = new HashMap<>();
             for (LoraModelPointResponse point : managerLoraConfigClient.findAllEnabledModelMappings()) {
@@ -63,7 +75,6 @@ public class LoraConfigCache {
                                 point.payloadField(), point.pointName(), point.dataPointTypeCode(),
                                 point.unit(), point.scale(), point.valueMap()));
             }
-            modelMappingsByModelId.set(Map.copyOf(modelMappings));
 
             Map<Integer, Map<String, LoraMappingRule>> overrides = new HashMap<>();
             for (LoraOverridePointResponse point : managerLoraConfigClient.findAllEnabledOverrides()) {
@@ -73,18 +84,44 @@ public class LoraConfigCache {
                                 point.payloadField(), point.pointName(), point.dataPointTypeCode(),
                                 point.unit(), point.scale(), point.valueMap()));
             }
-            overridesByDeviceId.set(Map.copyOf(overrides));
 
-            log.info("[LORA_CONFIG_CACHE_REFRESH] endpoints={} models={} overrideDevices={}",
-                    endpoints.size(), modelMappings.size(), overrides.size());
+            endpointsByKey.set(Map.copyOf(endpoints));
+            modelMappingsByModelId.set(Map.copyOf(modelMappings));
+            overridesByDeviceId.set(Map.copyOf(overrides));
+            identityCount.set(identities);
+            loaded.set(true);
+
+            log.info("[LORA_CONFIG_CACHE_REFRESH] identities={} endpoints={} models={} overrideDevices={}",
+                    identities, endpoints.size(), modelMappings.size(), overrides.size());
+        } catch (ManagerConfigUnavailableException exception) {
+            log.warn("[LORA_CONFIG_CACHE_REFRESH_SKIPPED] target={} reason={} keptEndpoints={} loaded={}",
+                    exception.getTarget(), exception.getMessage(), endpointsByKey.get().size(), loaded.get());
         } catch (Exception exception) {
             log.warn("[LORA_CONFIG_CACHE_REFRESH_ERROR] exception={} message={}",
                     exception.getClass().getSimpleName(), exception.getMessage());
         }
     }
 
+    /** 설정을 한 번이라도 받아왔는지. false면 수집 대상 유무를 판단할 수 없다. */
+    public boolean isLoaded() {
+        return loaded.get();
+    }
+
+    /** 유형 무관(LoRa·MAC 등) 활성 식별값이 하나라도 있는지. */
+    public boolean hasAnyIdentity() {
+        return identityCount.get() > 0;
+    }
+
     public Optional<LoraResolvedDevice> resolveDevice(LoraIdType idType, String externalId) {
-        String normalized = LoraExternalIdNormalizer.normalize(externalId);
+        String normalized;
+        try {
+            normalized = MqttExternalIdNormalizer.normalize(idType.name(), externalId);
+        } catch (IllegalArgumentException exception) {
+            // 수신 payload에서 뽑은 값이라 형식이 깨질 수 있다. 호출 측이 미등록 장비로 처리하도록 둔다.
+            log.debug("[LORA_INVALID_EXTERNAL_ID] idType={} externalId={} message={}",
+                    idType, externalId, exception.getMessage());
+            return Optional.empty();
+        }
         LoraResolvedDevice cached = endpointsByKey.get().get(key(idType, normalized));
         if (cached != null) {
             return Optional.of(cached);
@@ -118,7 +155,7 @@ public class LoraConfigCache {
         return modelMappings == null ? java.util.Set.of() : modelMappings.keySet();
     }
 
-    /** Manager에 활성 LoRa endpoint가 하나라도 있으면 MQTT 수집을 시작할 수 있다. */
+    /** 활성 LoRa(devEUI/deviceName) 매핑이 있는지. 구독 시작 판단은 {@link #hasAnyIdentity()}를 쓴다. */
     public boolean hasConfiguredEndpoint() {
         return !endpointsByKey.get().isEmpty();
     }
