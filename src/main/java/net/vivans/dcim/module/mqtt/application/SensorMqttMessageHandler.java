@@ -42,7 +42,12 @@ public class SensorMqttMessageHandler {
                         calculated.calculatedMetricId(), topic, elapsedMillis(startedAt));
                 return;
             }
-            SensorMqttPayload message = objectMapper.readValue(payload, SensorMqttPayload.class);
+            var root = objectMapper.readTree(payload);
+            if (root.has("deviceInfo")) {
+                log.warn("Device MQTT payload ignored on collector path; register a Manager source topic={}", topic);
+                return;
+            }
+            SensorMqttPayload message = objectMapper.treeToValue(root, SensorMqttPayload.class);
             String protocol = message.resolvedProtocol();
             if (message.data() == null || message.data().isEmpty()) {
                 log.debug("MQTT payload has no data topic={}", topic);

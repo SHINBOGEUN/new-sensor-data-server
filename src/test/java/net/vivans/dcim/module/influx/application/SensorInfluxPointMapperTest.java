@@ -147,4 +147,14 @@ class SensorInfluxPointMapperTest {
         assertThat(points.get(0).toLineProtocol()).doesNotContain("point_name=STATUS");
         assertThat(points.get(0).toLineProtocol()).doesNotContain("point_name=W");
     }
+
+    @Test
+    void loraRetainsLegacyProtocolTagsAndMillisecondPrecision() {
+        var time = java.time.Instant.parse("2026-10-14T08:11:13.545533Z");
+        var points = SensorInfluxPointMapper.toPoints("dcim_sensor", 41, null,
+                Map.of("TEMPERATURE", 23.89), time, null, "mqtt");
+        assertThat(points.get(0).toLineProtocol()).contains("device_id=41", "protocol=mqtt",
+                "point_name=TEMPERATURE", "value=23.89", Long.toString(time.toEpochMilli()))
+                .doesNotContain("component", "scope=");
+    }
 }

@@ -1,5 +1,6 @@
 package net.vivans.dcim.module.lora.infrastructure.dto;
 
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
 public record LoraModelPointResponse(
         Integer id,
         Integer deviceModelId,

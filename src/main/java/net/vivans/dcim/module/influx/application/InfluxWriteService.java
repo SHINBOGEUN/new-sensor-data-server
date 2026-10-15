@@ -26,6 +26,14 @@ public class InfluxWriteService {
     private InfluxDBClient client;
     private WriteApiBlocking writeApi;
 
+    public void writeMqttPoints(int deviceId, Integer modelId, ManagerDeviceResponse device,
+            List<net.vivans.dcim.module.mqtt.domain.MqttMeasurement> values, Instant collectedAt) {
+        if (!properties.isEnabled() || writeApi == null || values.isEmpty()) return;
+        var points = MqttInfluxPointMapper.toPoints(properties.getMeasurement(), deviceId, modelId, device, values, collectedAt);
+        if (!points.isEmpty()) writeApi.writePoints(points);
+        log.info("MQTT Influx write deviceId={} pointCount={}", deviceId, points.size());
+    }
+
     @PostConstruct
     public void connect() {
         if (!properties.isEnabled()) {

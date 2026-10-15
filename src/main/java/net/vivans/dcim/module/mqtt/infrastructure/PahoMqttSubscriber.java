@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.vivans.dcim.module.mqtt.application.SensorMqttMessageHandler;
 import net.vivans.dcim.module.mqtt.config.SensorMqttProperties;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
-import org.eclipse.paho.client.mqttv3.MqttCallback;
+import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
@@ -43,7 +43,13 @@ public class PahoMqttSubscriber {
                         properties.getPassword() == null ? new char[0] : properties.getPassword().toCharArray()
                 );
             }
-            client.setCallback(new MqttCallback() {
+            client.setCallback(new MqttCallbackExtended() {
+                @Override
+                public void connectComplete(boolean reconnect, String serverURI) {
+                    try { subscribeTopics(); }
+                    catch (MqttException exception) { log.warn("MQTT subscription failed: {}", exception.getMessage()); }
+                }
+
                 @Override
                 public void connectionLost(Throwable cause) {
                     log.warn("MQTT connection lost: {}", cause == null ? "unknown" : cause.getMessage());
@@ -59,14 +65,18 @@ public class PahoMqttSubscriber {
                 }
             });
             client.connect(options);
-            client.subscribe(properties.getTopic());
-            client.subscribe(properties.getCalculatedTopic());
-            log.info("[MQTT_SUBSCRIBE_END] topics=[{}, {}] broker={}",
-                    properties.getTopic(), properties.getCalculatedTopic(), properties.getBrokerUrl());
         } catch (MqttException exception) {
             log.warn("[MQTT_SUBSCRIBE_ERROR] broker={} exception={} message={}",
                     properties.getBrokerUrl(), exception.getClass().getSimpleName(), exception.getMessage());
         }
+    }
+
+    private void subscribeTopics() throws MqttException {
+        // 외부 장비(LoRa·GPU)는 Manager 소스 목록에서만 구독한다.
+        var topics = java.util.stream.Stream.of(properties.getTopic(), properties.getCalculatedTopic())
+                .filter(topic -> topic != null && !topic.isBlank()).distinct().toArray(String[]::new);
+        if (topics.length > 0) client.subscribe(topics);
+        log.info("[MQTT_SUBSCRIBE_END] topics={} broker={}", java.util.Arrays.toString(topics), properties.getBrokerUrl());
     }
 
     @PreDestroy

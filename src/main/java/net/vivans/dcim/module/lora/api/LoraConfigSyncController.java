@@ -15,11 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class LoraConfigSyncController {
     private final LoraConfigCache loraConfigCache;
     private final LoraMqttSubscriber loraMqttSubscriber;
+    private final net.vivans.dcim.module.mqtt.application.MqttConfigurationService mqttConfigurationService;
 
     @PostMapping("/refresh")
     public ResponseEntity<Void> refresh() {
         loraConfigCache.refresh();
         loraMqttSubscriber.requestRefresh();
+        mqttConfigurationService.refresh();
         return ResponseEntity.noContent().build();
     }
 }

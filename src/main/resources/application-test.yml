@@ -1,20 +1,20 @@
 influx:
   enabled: true
-  url: ${INFLUX_URL:http://localhost:8086}
-  token: ${INFLUX_TOKEN:vHGms79bf5fZDmppiP3TlhcHt1inFUmQmCg7URBv5FFnoY5vxDMsTgCrRTp4eWGWST5bbDObuwLAN2UF82YWgQ==}
+  url: ${INFLUX_URL:http://192.168.10.14:20192}
+  token: ${INFLUX_TOKEN:bJe_OHMl74F53g_O5CQsKwrEt_TQrNfmOzMLpGj724n0HbDXlqOhoz3x6_KJXARvOw0yHGdywzLde5gf4hgx_g==}
   org: ${INFLUX_ORG:vivans}
   bucket: ${INFLUX_BUCKET:dcim}
   measurement: ${INFLUX_MEASUREMENT:dcim_sensor}
 
 sensor:
   mqtt:
-    enabled: true
-    broker-url: tcp://localhost:1883
-    client-id: new-sensor-data-server
-    topic: dcim/sensor/data
+    enabled: ${MQTT_ENABLED:true}
+    broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+    client-id: ${MQTT_CLIENT_ID:new-sensor-data-server}
+    topic: ${MQTT_TOPIC:dcim/sensor/data}
 
 manager:
   service:
-    url: http://localhost:8080
-    api-key: sensor-data-service
-    enabled: true
+    url: ${MANAGER_SERVICE_URL:http://localhost:8080}
+    api-key: ${MANAGER_API_KEY:sensor-data-service}
+    enabled: ${MANAGER_LOOKUP_ENABLED:true}
