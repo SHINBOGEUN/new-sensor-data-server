@@ -7,7 +7,8 @@ import net.vivans.dcim.module.influx.application.InfluxWriteService;
 import net.vivans.dcim.module.manager.infrastructure.ManagerDeviceClient;
 import net.vivans.dcim.module.manager.infrastructure.dto.ManagerDeviceResponse;
 import net.vivans.dcim.module.mqtt.domain.SensorMqttPayload;
-import net.vivans.dcim.module.mqtt.domain.PueMqttPayload;
+import net.vivans.dcim.module.mqtt.domain.CalculatedMqttPayload;
+import net.vivans.dcim.module.mqtt.config.SensorMqttProperties;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -26,17 +27,19 @@ public class SensorMqttMessageHandler {
     private final ObjectMapper objectMapper;
     private final ManagerDeviceClient managerDeviceClient;
     private final InfluxWriteService influxWriteService;
+    private final SensorMqttProperties mqttProperties;
 
     public void handle(String topic, byte[] payload) {
         long startedAt = System.nanoTime();
         try {
-            if (topic.endsWith("/pue")) {
-                PueMqttPayload pue = objectMapper.readValue(payload, PueMqttPayload.class);
-                log.info("[PUE_MQTT_RECEIVE_START] definitionId={} configVersion={} topic={}",
-                        pue.pueDefinitionId(), pue.configVersion(), topic);
-                influxWriteService.writePue(pue.pueDefinitionId(), pue.configVersion(), pue.value(), pue.totalPower(), pue.coolerPower(), parseCollectedAt(pue.datetime()));
-                log.info("[PUE_MQTT_RECEIVE_END] definitionId={} topic={} elapsedMs={}",
-                        pue.pueDefinitionId(), topic, elapsedMillis(startedAt));
+            if (topic.equals(mqttProperties.getCalculatedTopic())) {
+                CalculatedMqttPayload calculated = objectMapper.readValue(payload, CalculatedMqttPayload.class);
+                log.info("[CALCULATED_MQTT_RECEIVE_START] metricId={} configVersion={} topic={}",
+                        calculated.calculatedMetricId(), calculated.configVersion(), topic);
+                influxWriteService.writeCalculated(calculated.calculatedMetricId(), calculated.configVersion(),
+                        calculated.value(), calculated.inputs(), parseCollectedAt(calculated.datetime()));
+                log.info("[CALCULATED_MQTT_RECEIVE_END] metricId={} topic={} elapsedMs={}",
+                        calculated.calculatedMetricId(), topic, elapsedMillis(startedAt));
                 return;
             }
             var root = objectMapper.readTree(payload);
@@ -45,6 +48,7 @@ public class SensorMqttMessageHandler {
                 return;
             }
             SensorMqttPayload message = objectMapper.treeToValue(root, SensorMqttPayload.class);
+            String protocol = message.resolvedProtocol();
             if (message.data() == null || message.data().isEmpty()) {
                 log.debug("MQTT payload has no data topic={}", topic);
                 return;
@@ -53,12 +57,13 @@ public class SensorMqttMessageHandler {
             for (Map.Entry<String, Map<String, Object>> entry : message.data().entrySet()) {
                 int deviceId = Integer.parseInt(entry.getKey());
                 ManagerDeviceResponse device = managerDeviceClient.findDevice(deviceId).orElse(null);
-                influxWriteService.writeSensorPoints(deviceId, device, entry.getValue(), collectedAt);
+                influxWriteService.writeSensorPoints(deviceId, device, entry.getValue(), collectedAt, null, protocol);
                 log.info(
-                        "sensor message processed deviceId={} pointCount={} type={}",
+                        "sensor message processed deviceId={} pointCount={} type={} protocol={}",
                         deviceId,
                         entry.getValue() == null ? 0 : entry.getValue().size(),
-                        message.type()
+                        message.type(),
+                        protocol
                 );
             }
         } catch (Exception exception) {
@@ -74,6 +79,11 @@ public class SensorMqttMessageHandler {
     private Instant parseCollectedAt(String datetime) {
         if (datetime == null || datetime.isBlank()) {
             return Instant.now();
+        }
+        try {
+            return Instant.parse(datetime);
+        } catch (Exception ignored) {
+            // 기존 센서 payload의 시간대 없는 datetime 형식은 아래에서 처리한다.
         }
         try {
             LocalDateTime localDateTime = LocalDateTime.parse(datetime, DATETIME);

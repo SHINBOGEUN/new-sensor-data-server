@@ -74,6 +74,9 @@ final class SensorInfluxPointMapper {
             if (hasText(component)) {
                 point.addTag("component", component);
             }
+            if (device != null && hasText(device.name())) {
+                point.addTag("device_name", device.name());
+            }
             if (device != null && device.modelId() != null) {
                 point.addTag("model_id", String.valueOf(device.modelId()));
             }

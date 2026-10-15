@@ -94,7 +94,7 @@ class ManagerSourceSubscriptionTest {
     }
 
     @Test
-    void fixedSubscriberOnlySubscribesCollectorAndPue() throws Exception {
+    void fixedSubscriberOnlySubscribesCollectorAndCalculated() throws Exception {
         var properties = new SensorMqttProperties();
         var fixed = new PahoMqttSubscriber(properties, mock(SensorMqttMessageHandler.class));
         try (var clients = mockConstruction(MqttClient.class)) {
@@ -105,7 +105,7 @@ class ManagerSourceSubscriptionTest {
             ((MqttCallbackExtended) callback.getValue()).connectComplete(false, properties.getBrokerUrl());
             var topics = ArgumentCaptor.forClass(String[].class);
             verify(client).subscribe(topics.capture());
-            assertThat(topics.getValue()).containsExactly("dcim/sensor/data", "dcim/derived/pue");
+            assertThat(topics.getValue()).containsExactly("dcim/sensor/data", "dcim/derived/calculated");
         }
     }
 

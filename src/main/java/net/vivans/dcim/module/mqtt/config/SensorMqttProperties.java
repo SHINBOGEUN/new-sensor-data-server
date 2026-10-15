@@ -13,7 +13,7 @@ public class SensorMqttProperties {
     private String brokerUrl = "tcp://localhost:1883";
     private String clientId = "new-sensor-data-server";
     private String topic = "dcim/sensor/data";
-    private String pueTopic = "dcim/derived/pue";
+    private String calculatedTopic = "dcim/derived/calculated";
     private long configTtlMs = 60000;
     private String username = "";
     private String password = "";

@@ -73,7 +73,7 @@ public class PahoMqttSubscriber {
 
     private void subscribeTopics() throws MqttException {
         // 외부 장비(LoRa·GPU)는 Manager 소스 목록에서만 구독한다.
-        var topics = java.util.stream.Stream.of(properties.getTopic(), properties.getPueTopic())
+        var topics = java.util.stream.Stream.of(properties.getTopic(), properties.getCalculatedTopic())
                 .filter(topic -> topic != null && !topic.isBlank()).distinct().toArray(String[]::new);
         if (topics.length > 0) client.subscribe(topics);
         log.info("[MQTT_SUBSCRIBE_END] topics={} broker={}", java.util.Arrays.toString(topics), properties.getBrokerUrl());

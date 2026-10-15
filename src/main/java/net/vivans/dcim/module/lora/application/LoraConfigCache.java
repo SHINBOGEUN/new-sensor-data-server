@@ -132,6 +132,10 @@ public class LoraConfigCache {
     }
 
     /** override 우선, 없으면 model 기본 매핑. 둘 다 없으면 empty (호출 측에서 미매핑 오류로 처리). */
+    public Optional<LoraMappingRule> resolveMapping(Integer deviceModelId, String payloadField) {
+        return resolveMapping(null, deviceModelId, payloadField);
+    }
+
     public Optional<LoraMappingRule> resolveMapping(Integer deviceId, Integer deviceModelId, String payloadField) {
         Map<String, LoraMappingRule> deviceOverrides = overridesByDeviceId.get().get(deviceId);
         if (deviceOverrides != null && deviceOverrides.containsKey(payloadField)) {

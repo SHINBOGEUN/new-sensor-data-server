@@ -56,11 +56,22 @@ public class InfluxWriteService {
             Map<String, Object> values,
             Instant collectedAt
     ) {
-        writeSensorPoints(deviceId, device, values, collectedAt, null, "snmp");
+        writeSensorPoints(deviceId, device, values, collectedAt, null, null);
     }
 
-    public void writeSensorPoints(int deviceId, ManagerDeviceResponse device, Map<String, Object> values,
-            Instant collectedAt, String component, String protocol) {
+    /**
+     * protocol/component을 호출 측에서 지정할 수 있는 오버로드.
+     * LoRa/MQTT 수집 경로는 protocol="mqtt" 로 호출한다. 기존 호출부는 위 4-arg 오버로드를 그대로 사용하며
+     * 내부적으로 protocol=null(=snmp로 처리)로 위임되므로 동작 변화가 없다.
+     */
+    public void writeSensorPoints(
+            int deviceId,
+            ManagerDeviceResponse device,
+            Map<String, Object> values,
+            Instant collectedAt,
+            String component,
+            String protocol
+    ) {
         if (!properties.isEnabled() || writeApi == null) {
             log.debug("Influx write skipped (disabled) deviceId={}", deviceId);
             return;
@@ -72,44 +83,41 @@ public class InfluxWriteService {
                 values,
                 collectedAt,
                 component,
-                protocol
+                protocol == null || protocol.isBlank() ? "snmp" : protocol
         );
         if (points.isEmpty()) {
             log.warn("Influx write skipped (no valid points) deviceId={}", deviceId);
             return;
         }
         writeApi.writePoints(points);
-        log.info("Influx write deviceId={} {}", deviceId, formatKeyValues(values));
+        log.info("Influx write deviceId={} protocol={} {}", deviceId, protocol, formatKeyValues(values));
     }
 
-    public void writePue(Integer definitionId, Integer configVersion, Double value, Double totalPower, Double coolerPower, Instant collectedAt) {
-        if (!properties.isEnabled() || writeApi == null) {
-            log.debug("[PUE_INFLUX_SKIP] definitionId={} reason=CLIENT_DISABLED", definitionId);
-            return;
+
+    public void writeCalculated(Integer definitionId, Integer configVersion, Double value,
+                                Map<String, Double> inputs, Instant collectedAt) {
+        if (!properties.isEnabled() || writeApi == null) return;
+        if (definitionId == null || value == null || !Double.isFinite(value)
+                || inputs == null || inputs.isEmpty() || inputs.values().stream().anyMatch(v -> v == null || !Double.isFinite(v))) {
+            throw new IllegalArgumentException("invalid calculated metric payload");
         }
-        if (definitionId == null || value == null || !Double.isFinite(value)) {
-            log.warn("[PUE_INFLUX_SKIP] definitionId={} reason=INVALID_PAYLOAD", definitionId);
-            return;
+        Point point = Point.measurement(properties.getMeasurement())
+                .addTag("metric_kind", "calculated")
+                .addTag("calculated_metric_id", String.valueOf(definitionId))
+                .addTag("calculated_config_version", String.valueOf(configVersion == null ? 1 : configVersion))
+                .addTag("point_name", "CALCULATED")
+                .addTag("protocol", "derived")
+                .addField("value", value)
+                .time(collectedAt == null ? Instant.now() : collectedAt, com.influxdb.client.domain.WritePrecision.MS);
+        for (Map.Entry<String, Double> input : inputs.entrySet()) {
+            if (input.getKey() == null || !input.getKey().matches("[A-Za-z][A-Za-z0-9_]{0,31}")) {
+                throw new IllegalArgumentException("invalid calculated source alias");
+            }
+            point.addField("input_" + input.getKey(), input.getValue());
         }
-        try {
-            Point point = Point.measurement(properties.getMeasurement())
-                    .addTag("metric_kind", "pue")
-                    .addTag("pue_definition_id", String.valueOf(definitionId))
-                    .addTag("pue_config_version", String.valueOf(configVersion == null ? 1 : configVersion))
-                    .addTag("point_name", "PUE")
-                    .addTag("protocol", "derived")
-                    .addField("value", value)
-                    .addField("total_power", totalPower == null ? 0D : totalPower)
-                    .addField("cooler_power", coolerPower == null ? 0D : coolerPower)
-                    .time(collectedAt == null ? Instant.now() : collectedAt, com.influxdb.client.domain.WritePrecision.MS);
-            writeApi.writePoint(point);
-            log.info("[PUE_INFLUX_END] action=WRITE definitionId={} configVersion={} measurement={}",
-                    definitionId, configVersion == null ? 1 : configVersion, properties.getMeasurement());
-        } catch (Exception exception) {
-            log.warn("[PUE_INFLUX_ERROR] action=WRITE definitionId={} exception={} message={}",
-                    definitionId, exception.getClass().getSimpleName(), exception.getMessage());
-            throw exception;
-        }
+        writeApi.writePoint(point);
+        log.info("[CALCULATED_INFLUX_END] definitionId={} version={} sourceCount={}",
+                definitionId, configVersion, inputs.size());
     }
 
     /** 실제 적재되는 point만 `key=value` 형태로 연결 */
