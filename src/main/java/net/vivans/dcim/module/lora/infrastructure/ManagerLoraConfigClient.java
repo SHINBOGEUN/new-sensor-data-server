@@ -82,7 +82,10 @@ public class ManagerLoraConfigClient {
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {
                     });
-            return response == null || response.data() == null ? List.of() : response.data().stream()
+            if (response == null || response.status() != 200 || response.data() == null) {
+                throw new IllegalStateException("Invalid manager model mappings response");
+            }
+            return response.data().stream()
                     .filter(item -> "DEVICE".equals(item.path("componentScope").asText()) && item.path("enabled").asBoolean())
                     .map(item -> objectMapper.convertValue(item, LoraModelPointResponse.class)).toList();
         } catch (Exception exception) {
@@ -98,14 +101,20 @@ public class ManagerLoraConfigClient {
         return List.of();
     }
 
-    /** MQTT 연결 단위 소스 목록. 장비 endpoint와 달리 source 하나가 여러 LoRa 장비 메시지를 받는다. */
+    /**
+     * MQTT 연결 단위 소스 목록. 장비 endpoint와 달리 source 하나가 여러 장비 메시지를 받는다.
+     * LoRa 전용 경로가 아닌 공통 경로를 쓰므로 AGENT 소스도 함께 내려온다.
+     */
     public List<LoraMqttSourceResponse> findAllSources() {
         if (!properties.isEnabled()) return List.of();
         try {
             LoraApiListResponse<LoraMqttSourceResponse> response = managerRestClient.get()
-                    .uri("/api/manager/lora/sources/bulk")
+                    .uri("/api/manager/mqtt/sources/bulk")
                     .retrieve().body(new ParameterizedTypeReference<>() { });
-            return response == null || response.data() == null ? List.of() : response.data();
+            if (response == null || response.status() != 200 || response.data() == null) {
+                throw new IllegalStateException("Invalid manager MQTT source response");
+            }
+            return response.data();
         } catch (Exception exception) {
             log.warn("[LORA_SOURCE_FETCH_ERROR] exception={} message={}",
                     exception.getClass().getSimpleName(), exception.getMessage());
@@ -116,7 +125,7 @@ public class ManagerLoraConfigClient {
     public void reportSourceStatus(Integer sourceId, LoraMqttSourceStatusReportRequest request) {
         if (!properties.isEnabled()) return;
         try {
-            managerRestClient.post().uri("/api/manager/lora/sources/{sourceId}/status", sourceId)
+            managerRestClient.post().uri("/api/manager/mqtt/sources/{sourceId}/status", sourceId)
                     .body(request).retrieve().toBodilessEntity();
         } catch (Exception exception) {
             log.debug("[LORA_SOURCE_STATUS_REPORT_ERROR] sourceId={} message={}", sourceId, exception.getMessage());

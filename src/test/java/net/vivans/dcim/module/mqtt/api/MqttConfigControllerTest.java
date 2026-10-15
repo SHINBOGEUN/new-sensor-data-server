@@ -39,4 +39,14 @@ class MqttConfigControllerTest {
         verify(loraCache).refresh();
         verify(loraSubscriber).requestRefresh();
     }
+
+    @Test
+    void commonAndLegacySourceRefreshUrlsReconcileManagerSources() throws Exception {
+        mvc.perform(post("/api/internal/mqtt/sources/refresh").header("X-Api-Key", "test-only-key"))
+                .andExpect(status().isNoContent());
+        mvc.perform(post("/api/internal/lora/sources/refresh").header("X-Api-Key", "test-only-key"))
+                .andExpect(status().isNoContent());
+        verify(loraSubscriber, times(2)).requestRefresh();
+        mvc.perform(post("/api/internal/mqtt/sources/refresh")).andExpect(status().isUnauthorized());
+    }
 }

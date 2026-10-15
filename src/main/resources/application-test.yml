@@ -1,7 +1,7 @@
 influx:
   enabled: true
-  url: ${INFLUX_URL:http://localhost:8086}
-  token: ${INFLUX_TOKEN:vHGms79bf5fZDmppiP3TlhcHt1inFUmQmCg7URBv5FFnoY5vxDMsTgCrRTp4eWGWST5bbDObuwLAN2UF82YWgQ==}
+  url: ${INFLUX_URL:http://192.168.10.14:20192}
+  token: ${INFLUX_TOKEN:bJe_OHMl74F53g_O5CQsKwrEt_TQrNfmOzMLpGj724n0HbDXlqOhoz3x6_KJXARvOw0yHGdywzLde5gf4hgx_g==}
   org: ${INFLUX_ORG:vivans}
   bucket: ${INFLUX_BUCKET:dcim}
   measurement: ${INFLUX_MEASUREMENT:dcim_sensor}

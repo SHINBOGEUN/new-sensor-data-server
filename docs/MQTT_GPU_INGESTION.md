@@ -65,29 +65,45 @@ MariaDB 직접 접속이나 장비/포인트 자동 INSERT는 하지 않는다.
 GPU는 새 에이전트 처리 경로를 사용한다. ChirpStack은 기존 LoRa 처리 경로를 사용하며
 deviceInfo.devEui(없는 경우 deviceName)로 식별하고 object.*를 읽는다.
 작업 시작 main에 없던 LoRa 구현은 origin/feat/dragino-standard-telemetry에서 복원했다.
-LoRa 브로커·토픽·자격증명은 기존 Manager 소스 설정과 sensor.mqtt.lora.credentials를 사용한다.
-공통 Paho 구독에서는 LoRa 토픽을 제거하여 동일 메시지의 이중 저장을 방지한다.
+LoRa·GPU 브로커·토픽은 Manager의 공통 MQTT 소스 설정만 사용한다.
+자격증명은 호환성을 위해 sensor.mqtt.lora.credentials에서 credentialKey로 읽는다(GPU도 같은 키 저장소 사용).
+공통 Paho 구독은 collector·PUE 전용이다. GPU 고정 토픽 구독은 제거했다.
 LoRa sentinel(327.67/409.5) 제외, 값 매핑·배율, 오류 보고, 수신 시각 저장은 기존 로직을 유지한다.
-LoRa 소스 관리 URL은 유지한다. 제거된 override API는 호출하지 않고 모델별 공통 MQTT 포인트를 사용한다.
+소스 조회·상태 보고는 /api/manager/mqtt/sources 경로를 사용한다.
+제거된 override API는 호출하지 않고 모델별 공통 MQTT 포인트를 사용한다.
 Manager에 오류 적재 API가 없으므로 오류는 sensor-data 로그에 남긴다. raw payload는 오류 기록기가 출력하지 않는다.
 
 | 환경변수 | 기본값 | 용도 |
 |---|---|---|
-| MQTT_AGENT_TOPIC | dcim/agent/+/telemetry | 예: dcim/agent/server-01/telemetry |
 | MQTT_CONFIG_TTL_MS | 60000 | 설정 갱신 주기 (ms) |
 | MANAGER_SERVICE_URL | http://localhost:8080 | Manager |
 | MANAGER_API_KEY | sensor-data-service | Manager API 키 |
 | MANAGER_LOOKUP_ENABLED | true | 설정 조회 활성화 |
 
-에이전트 토픽을 변경할 수 없으면 MQTT_AGENT_TOPIC을 실제 토픽 필터로 설정한다.
-에이전트 구독이 불필요하면 MQTT_AGENT_TOPIC을 빈 문자열로 설정하여 중단할 수 있다.
-LoRa 구독은 기존처럼 Manager의 활성 식별값 및 MQTT 소스 설정을 기준으로 동작한다.
+MQTT_AGENT_TOPIC은 더 이상 사용하지 않는다. Manager에서 예를 들어 다음 소스를 등록한다.
+
+| sourceType | brokerUrl (예시) | topic |
+|---|---|---|
+| CHIRPSTACK_LORA | tcp://192.168.0.199:1883 | /application/# |
+| AGENT | tcp://192.168.0.199:1883 | net/vivans/gpu-mon/# |
+
+실제 브로커 주소로 바꿔 등록한다. 구독 여부는 소스의 enabled가 결정한다.
+장비 식별값이 아직 없어도 소스를 구독하지만 미등록 장비의 값은 저장하지 않는다.
+같은 브로커에서 소스 토픽이 서로 겹치지 않게 등록한다. 같은 토픽 안에서 JSON 형식을 자동 판별하는 기능은 없다.
+소스 삭제·비활성화는 해당 연결을 끊고, configVersion 변경은 기존 연결을 새 설정으로 교체한다.
+최초 연결 실패는 다음 소스 동기화에서 재시도하고, 연결 후 끊김은 Paho 자동 재접속으로 복구한다.
 MQTT_TOPIC, MQTT_PUE_TOPIC, MQTT_BROKER_URL, INFLUX_*는 기존과 동일하다.
 
 사용 API:
 - GET /api/manager/mqtt/identities/bulk
 - GET /api/manager/mqtt/mappings/models/bulk
 - GET /api/manager/mqtt/identities/resolve?identityType=MAC&externalId=...
+- GET /api/manager/mqtt/sources/bulk
+- POST /api/manager/mqtt/sources/{id}/status
+
+POST /api/internal/mqtt/sources/refresh는 Manager 소스 목록을 즉시 다시 읽는다.
+기존 POST /api/internal/lora/sources/refresh는 같은 동작의 호환 별칭이다.
+소스 목록 조회 실패·잘못된 응답은 기존 구독을 유지하고 다음 동기화에서 재시도한다.
 
 캐시는 첫 메시지에서 읽고 주기적으로 전체 교체한다. 캐시에 없는 식별값은 resolve로 확인한다.
 미등록 식별값도 갱신 시점까지 최대 1024개 캐시하여 반복 조회를 제한한다.
@@ -109,7 +125,7 @@ Java 17에서 `mvn test` 또는 `mvn package`로 검증한다. 테스트는 mana
 모의 서버로, MQTT 수신은 메시지 핸들러로, Influx 쓰기는 mock API로 검증한다.
 실제 브로커·DB에 접속하는 통합 테스트는 자동 수행하지 않는다.
 
-실행 전 MANAGER_SERVICE_URL, MANAGER_API_KEY, MQTT_BROKER_URL, MQTT_CLIENT_ID,
+실행 전 MANAGER_SERVICE_URL, MANAGER_API_KEY와 collector·PUE용 MQTT_BROKER_URL, MQTT_CLIENT_ID,
 INFLUX_ENABLED=true 및 INFLUX_URL/TOKEN/ORG/BUCKET을 실제 환경에 맞게 설정한다.
 컨테이너에서 localhost는 자기 컨테이너를 의미하므로 서비스 DNS 이름을 사용한다.
 배포 환경은 SPRING_PROFILES_ACTIVE=prod 등 명시적 프로필을 권장한다.

@@ -1,9 +1,11 @@
 package net.vivans.dcim.module.mqtt.infrastructure;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.vivans.dcim.module.lora.application.LoraConfigCache;
 import net.vivans.dcim.module.lora.application.LoraMqttMessageHandler;
 import net.vivans.dcim.module.lora.infrastructure.ManagerLoraConfigClient;
 import net.vivans.dcim.module.manager.infrastructure.ManagerConfigUnavailableException;
+import net.vivans.dcim.module.mqtt.application.AgentMqttMessageHandler;
 import net.vivans.dcim.module.mqtt.config.LoraMqttProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,16 +32,18 @@ class LoraMqttSubscriberGateTest {
         cache = mock(LoraConfigCache.class);
         client = mock(ManagerLoraConfigClient.class);
         subscriber = new LoraMqttSubscriber(
-                new LoraMqttProperties(), mock(LoraMqttMessageHandler.class), cache, client);
+                new LoraMqttProperties(), mock(LoraMqttMessageHandler.class),
+                mock(AgentMqttMessageHandler.class), new ObjectMapper(), cache, client);
     }
 
     @Test
-    void configUnavailableTickDoesNotReconcileOrReportStatus() {
+    void identityCacheUnavailableDoesNotBlockSourceListLookup() {
         when(cache.isLoaded()).thenReturn(false);
+        when(client.findAllSources()).thenReturn(List.of());
 
         subscriber.refreshSources();
 
-        verify(client, never()).findAllSources();
+        verify(client).findAllSources();
         verify(client, never()).reportSourceStatus(anyInt(), any());
     }
 
@@ -57,13 +61,14 @@ class LoraMqttSubscriberGateTest {
     }
 
     @Test
-    void loadedConfigWithoutIdentityStopsCollecting() {
+    void sourceListIsReadEvenBeforeAnyDeviceIsRegistered() {
         when(cache.isLoaded()).thenReturn(true);
         when(cache.hasAnyIdentity()).thenReturn(false);
+        when(client.findAllSources()).thenReturn(List.of());
 
         subscriber.refreshSources();
 
-        verify(client, never()).findAllSources();
+        verify(client).findAllSources();
     }
 
     @Test

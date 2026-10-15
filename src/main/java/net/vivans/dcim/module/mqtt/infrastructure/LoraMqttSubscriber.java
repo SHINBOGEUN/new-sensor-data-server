@@ -1,5 +1,6 @@
 package net.vivans.dcim.module.mqtt.infrastructure;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import net.vivans.dcim.module.lora.infrastructure.ManagerLoraConfigClient;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraMqttSourceResponse;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraMqttSourceStatusReportRequest;
 import net.vivans.dcim.module.manager.infrastructure.ManagerConfigUnavailableException;
+import net.vivans.dcim.module.mqtt.application.AgentMqttMessageHandler;
 import net.vivans.dcim.module.mqtt.config.LoraMqttProperties;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
@@ -30,7 +32,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Manager가 소유한 MQTT 수집 소스(Broker + Topic)를 동적으로 연결·재조정한다.
- * device_lora_endpoint는 메시지 내부 devEUI/deviceName 매핑용이고 MQTT 연결 단위가 아니다.
+ * 식별값(devEUI·MAC 등)은 메시지 내부 매칭용이고 MQTT 연결 단위가 아니다.
+ * 소스 유형(CHIRPSTACK_LORA·AGENT)에 따라 메시지를 각 처리기로 보낸다.
  */
 @Slf4j
 @Component
@@ -41,6 +44,8 @@ public class LoraMqttSubscriber {
 
     private final LoraMqttProperties properties;
     private final LoraMqttMessageHandler messageHandler;
+    private final AgentMqttMessageHandler agentMessageHandler;
+    private final ObjectMapper objectMapper;
     private final LoraConfigCache loraConfigCache;
     private final ManagerLoraConfigClient managerLoraConfigClient;
     private final Map<Integer, ManagedSource> sources = new ConcurrentHashMap<>();
@@ -53,22 +58,8 @@ public class LoraMqttSubscriber {
     /** Manager의 즉시 이벤트가 유실되어도 1분마다 원하는 상태로 맞춘다. */
     @Scheduled(fixedDelayString = "${sensor.mqtt.lora.source-sync-fixed-delay-ms:60000}")
     public synchronized void refreshSources() {
-        // 기능 on/off는 환경변수가 아닌 Manager의 활성 식별값 존재 여부가 기준이다.
+        // 구독 여부는 소스 목록/활성 여부만 결정한다. 장비 등록 여부는 메시지 저장 단계에서 검사한다.
         loraConfigCache.refresh();
-        // 설정을 못 받은 상태에서 해제하면 Manager 재배포만으로 수집이 끊긴다. 직전 구독을 유지한다.
-        if (!loraConfigCache.isLoaded()) {
-            log.warn("[LORA_MQTT_SOURCE_RECONCILE_SKIPPED] reason=manager_config_unavailable connectedClients={}",
-                    sources.size());
-            return;
-        }
-        if (!loraConfigCache.hasAnyIdentity()) {
-            if (!sources.isEmpty()) {
-                sources.values().forEach(source -> source.close("NOT_SYNCED"));
-                sources.clear();
-            }
-            log.info("[LORA_MQTT_SUBSCRIBE_SKIPPED] reason=no_enabled_identity");
-            return;
-        }
 
         List<LoraMqttSourceResponse> configuredSources;
         try {
@@ -104,7 +95,7 @@ public class LoraMqttSubscriber {
                 continue;
             }
             if (current != null && current.configVersion == source.configVersion()) {
-                current.reportHeartbeat();
+                current.ensureActive();
                 continue;
             }
             if (current != null) current.close("DISCONNECTED");
@@ -142,10 +133,25 @@ public class LoraMqttSubscriber {
         private volatile Instant lastConnectedAt;
         private volatile Instant lastMessageAt;
         private volatile String lastError;
+        private volatile boolean connectedOnce;
+        private volatile boolean subscribed;
 
         private ManagedSource(LoraMqttSourceResponse source) {
             this.source = source;
             this.configVersion = source.configVersion();
+        }
+
+        /** 소스 유형에 맞는 처리기로 보낸다. 에이전트 payload는 LoRa uplink 구조가 아니다. */
+        private void dispatch(String topic, byte[] payload) throws Exception {
+            if (source.isAgent()) {
+                agentMessageHandler.handle(objectMapper.readTree(payload));
+                return;
+            }
+            if (LoraMqttSourceResponse.TYPE_CHIRPSTACK_LORA.equals(source.sourceType())) {
+                messageHandler.handle(topic, payload);
+                return;
+            }
+            throw new IllegalArgumentException("Unsupported MQTT sourceType: " + source.sourceType());
         }
 
         private void connectAndSubscribe() {
@@ -157,6 +163,7 @@ public class LoraMqttSubscriber {
                 MqttConnectOptions options = new MqttConnectOptions();
                 options.setAutomaticReconnect(true);
                 options.setCleanSession(true);
+                options.setConnectionTimeout(10);
                 LoraMqttProperties.Credentials credentials = properties.credentialsFor(source.credentialKey());
                 if (credentials.getUsername() != null && !credentials.getUsername().isBlank()) {
                     options.setUserName(credentials.getUsername());
@@ -168,6 +175,7 @@ public class LoraMqttSubscriber {
                         if (!reconnect) return;
                         try {
                             client.subscribe(source.topic());
+                            subscribed = true;
                             lastConnectedAt = Instant.now();
                             lastError = null;
                             log.info("[LORA_MQTT_RESUBSCRIBE_END] sourceId={} topic={} broker={}",
@@ -182,6 +190,7 @@ public class LoraMqttSubscriber {
 
                     @Override
                     public void connectionLost(Throwable cause) {
+                        subscribed = false;
                         reconnectCount.incrementAndGet();
                         lastError = cause == null ? "connection lost" : cause.getMessage();
                         log.warn("[LORA_MQTT_CONNECTION_LOST] sourceId={} name={} message={}", source.id(), source.name(), lastError);
@@ -193,7 +202,7 @@ public class LoraMqttSubscriber {
                         lastMessageAt = Instant.now();
                         messageCount.incrementAndGet();
                         try {
-                            messageHandler.handle(topic, message.getPayload());
+                            dispatch(topic, message.getPayload());
                             reportState("CONNECTED");
                         } catch (Exception exception) {
                             errorCount.incrementAndGet();
@@ -208,7 +217,9 @@ public class LoraMqttSubscriber {
                     }
                 });
                 client.connect(options);
+                connectedOnce = true;
                 client.subscribe(source.topic());
+                subscribed = true;
                 lastConnectedAt = Instant.now();
                 lastError = null;
                 log.info("[LORA_MQTT_SUBSCRIBE_END] sourceId={} name={} topic={} broker={}",
@@ -223,8 +234,31 @@ public class LoraMqttSubscriber {
             }
         }
 
+        private void ensureActive() {
+            if (!connectedOnce) {
+                // Paho 자동 재접속은 연결 후 끊김에 적용된다. 최초 접속 실패는 직접 재시도한다.
+                close("DISCONNECTED");
+                reconnectCount.incrementAndGet();
+                connectAndSubscribe();
+                return;
+            }
+            if (client != null && client.isConnected() && !subscribed) {
+                try {
+                    client.subscribe(source.topic());
+                    subscribed = true;
+                    lastError = null;
+                } catch (MqttException exception) {
+                    lastError = exception.getMessage();
+                    errorCount.incrementAndGet();
+                    reportState("ERROR");
+                    return;
+                }
+            }
+            reportHeartbeat();
+        }
+
         private void reportHeartbeat() {
-            reportState(client != null && client.isConnected() ? "CONNECTED" : "DISCONNECTED");
+            reportState(client != null && client.isConnected() && subscribed ? "CONNECTED" : "DISCONNECTED");
         }
 
         private void reportState(String state) {
@@ -234,7 +268,8 @@ public class LoraMqttSubscriber {
         private void close(String state) {
             try {
                 if (client != null && client.isConnected()) client.disconnect();
-                if (client != null) client.close();
+                if (client != null) client.close(true);
+                subscribed = false;
             } catch (MqttException exception) {
                 lastError = exception.getMessage();
             } finally {

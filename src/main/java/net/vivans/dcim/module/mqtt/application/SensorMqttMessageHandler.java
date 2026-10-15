@@ -26,8 +26,6 @@ public class SensorMqttMessageHandler {
     private final ObjectMapper objectMapper;
     private final ManagerDeviceClient managerDeviceClient;
     private final InfluxWriteService influxWriteService;
-    private final AgentMqttMessageHandler agentMqttMessageHandler;
-    private final net.vivans.dcim.module.lora.application.LoraMqttMessageHandler loraMqttMessageHandler;
 
     public void handle(String topic, byte[] payload) {
         long startedAt = System.nanoTime();
@@ -43,11 +41,7 @@ public class SensorMqttMessageHandler {
             }
             var root = objectMapper.readTree(payload);
             if (root.has("deviceInfo")) {
-                if (root.path("deviceInfo").hasNonNull("identityType")) {
-                    agentMqttMessageHandler.handle(root);
-                } else {
-                    loraMqttMessageHandler.handle(topic, payload);
-                }
+                log.warn("Device MQTT payload ignored on collector path; register a Manager source topic={}", topic);
                 return;
             }
             SensorMqttPayload message = objectMapper.treeToValue(root, SensorMqttPayload.class);
