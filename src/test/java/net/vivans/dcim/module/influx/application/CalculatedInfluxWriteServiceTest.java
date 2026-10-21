@@ -20,7 +20,7 @@ class CalculatedInfluxWriteServiceTest {
         InfluxProperties properties = new InfluxProperties();
         properties.setEnabled(true);
         WriteApiBlocking api = mock(WriteApiBlocking.class);
-        InfluxWriteService writer = new InfluxWriteService(properties);
+        InfluxWriteService writer = new InfluxWriteService(properties, mock(net.vivans.dcim.module.manager.infrastructure.AlarmMeasurementClient.class));
         ReflectionTestUtils.setField(writer, "writeApi", api);
 
         writer.writeCalculated(12, 3, 1.5, Map.of("FACILITY", 150.0, "IT", 100.0),
@@ -39,7 +39,7 @@ class CalculatedInfluxWriteServiceTest {
         InfluxProperties properties = new InfluxProperties();
         properties.setEnabled(true);
         WriteApiBlocking api = mock(WriteApiBlocking.class);
-        InfluxWriteService writer = new InfluxWriteService(properties);
+        InfluxWriteService writer = new InfluxWriteService(properties, mock(net.vivans.dcim.module.manager.infrastructure.AlarmMeasurementClient.class));
         ReflectionTestUtils.setField(writer, "writeApi", api);
 
         assertThatThrownBy(() -> writer.writeCalculated(12, 1, 1.0, Map.of(), Instant.now()))
