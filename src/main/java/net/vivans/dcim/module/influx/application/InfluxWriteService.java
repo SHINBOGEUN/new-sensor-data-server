@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.vivans.dcim.module.influx.config.InfluxProperties;
 import net.vivans.dcim.module.manager.infrastructure.dto.ManagerDeviceResponse;
+import net.vivans.dcim.module.manager.infrastructure.AlarmMeasurementClient;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 public class InfluxWriteService {
 
     private final InfluxProperties properties;
+    private final AlarmMeasurementClient alarmClient;
     private InfluxDBClient client;
     private WriteApiBlocking writeApi;
 
@@ -31,6 +33,14 @@ public class InfluxWriteService {
         if (!properties.isEnabled() || writeApi == null || values.isEmpty()) return;
         var points = MqttInfluxPointMapper.toPoints(properties.getMeasurement(), deviceId, modelId, device, values, collectedAt);
         if (!points.isEmpty()) writeApi.writePoints(points);
+        Map<String, Double> thresholdValues = values.stream()
+                .filter(value -> value.componentType() == null || value.componentType().isBlank())
+                .filter(value -> Double.isFinite(value.value()))
+                .collect(Collectors.toMap(net.vivans.dcim.module.mqtt.domain.MqttMeasurement::pointName,
+                        net.vivans.dcim.module.mqtt.domain.MqttMeasurement::value, (first, later) -> later));
+        if (!points.isEmpty() && !thresholdValues.isEmpty()) {
+            alarmClient.afterWrite(deviceId, "mqtt", collectedAt, thresholdValues);
+        }
         log.info("MQTT Influx write deviceId={} pointCount={}", deviceId, points.size());
     }
 
@@ -90,6 +100,18 @@ public class InfluxWriteService {
             return;
         }
         writeApi.writePoints(points);
+        if (component == null || component.isBlank()) {
+            Map<String, Double> thresholdValues = values.entrySet().stream()
+                    .filter(entry -> entry.getKey() != null && !entry.getKey().isBlank()
+                            && entry.getKey().chars().noneMatch(ch -> ch == ' ' || ch == ',' || ch == '=' || ch == '"'))
+                    .map(entry -> new java.util.AbstractMap.SimpleImmutableEntry<>(entry.getKey(), toDoubleOrNull(entry.getValue())))
+                    .filter(entry -> entry.getValue() != null)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            if (!thresholdValues.isEmpty()) {
+                alarmClient.afterWrite(deviceId, protocol == null || protocol.isBlank() ? "snmp" : protocol,
+                        collectedAt == null ? Instant.now() : collectedAt, thresholdValues);
+            }
+        }
         log.info("Influx write deviceId={} protocol={} {}", deviceId, protocol, formatKeyValues(values));
     }
 

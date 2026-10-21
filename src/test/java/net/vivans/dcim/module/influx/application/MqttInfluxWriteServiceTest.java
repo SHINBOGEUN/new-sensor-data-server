@@ -19,7 +19,7 @@ class MqttInfluxWriteServiceTest {
         var properties = new InfluxProperties();
         properties.setEnabled(true);
         properties.setMeasurement("dcim_sensor");
-        var service = new InfluxWriteService(properties);
+        var service = new InfluxWriteService(properties, mock(net.vivans.dcim.module.manager.infrastructure.AlarmMeasurementClient.class));
         var writeApi = mock(WriteApiBlocking.class);
         ReflectionTestUtils.setField(service, "writeApi", writeApi);
         service.writeMqttPoints(40, 8, null, List.of(
