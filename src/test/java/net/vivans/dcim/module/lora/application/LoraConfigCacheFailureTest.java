@@ -3,6 +3,7 @@ package net.vivans.dcim.module.lora.application;
 import net.vivans.dcim.module.lora.domain.LoraIdType;
 import net.vivans.dcim.module.lora.infrastructure.ManagerLoraConfigClient;
 import net.vivans.dcim.module.lora.infrastructure.dto.LoraEndpointResponse;
+import net.vivans.dcim.module.lora.infrastructure.dto.LoraModelPointResponse;
 import net.vivans.dcim.module.manager.infrastructure.ManagerConfigUnavailableException;
 import net.vivans.dcim.module.mqtt.config.LoraMqttProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +29,17 @@ class LoraConfigCacheFailureTest {
     void setUp() {
         client = mock(ManagerLoraConfigClient.class);
         cache = new LoraConfigCache(client, new LoraMqttProperties());
+    }
+
+    @Test
+    void modelMappingCanBeResolvedWithoutDeviceOverride() {
+        when(client.findAllEnabledModelMappings()).thenReturn(List.of(
+                new LoraModelPointResponse(1, 9, "object.TempC_SHT", "TEMPERATURE",
+                        1, "TEMPERATURE", "°C", null, null, true)));
+        cache.refresh();
+
+        assertThat(cache.resolveMapping(9, "object.TempC_SHT"))
+                .get().extracting(LoraMappingRule::pointName).isEqualTo("TEMPERATURE");
     }
 
     @Test

@@ -137,7 +137,7 @@ public class LoraConfigCache {
     }
 
     public Optional<LoraMappingRule> resolveMapping(Integer deviceId, Integer deviceModelId, String payloadField) {
-        Map<String, LoraMappingRule> deviceOverrides = overridesByDeviceId.get().get(deviceId);
+        Map<String, LoraMappingRule> deviceOverrides = deviceId == null ? null : overridesByDeviceId.get().get(deviceId);
         if (deviceOverrides != null && deviceOverrides.containsKey(payloadField)) {
             return Optional.of(deviceOverrides.get(payloadField));
         }
