@@ -3,6 +3,7 @@ package net.vivans.dcim.module.mqtt.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.vivans.dcim.module.influx.application.InfluxWriteService;
 import net.vivans.dcim.module.manager.infrastructure.ManagerDeviceClient;
+import net.vivans.dcim.module.manager.infrastructure.GpuAgentDiscoveryClient;
 import net.vivans.dcim.module.manager.infrastructure.dto.MqttIdentityResponse;
 import net.vivans.dcim.module.mqtt.domain.MqttMeasurement;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,21 @@ class AgentMqttMessageHandlerTest {
     private final MqttConfigurationService config = mock(MqttConfigurationService.class);
     private final ManagerDeviceClient devices = mock(ManagerDeviceClient.class);
     private final InfluxWriteService writer = mock(InfluxWriteService.class);
-    private final AgentMqttMessageHandler handler = new AgentMqttMessageHandler(config, new MqttPointExtractor(mapper), devices, writer);
+    private final GpuAgentDiscoveryClient discovery = mock(GpuAgentDiscoveryClient.class);
+    private final AgentMqttMessageHandler handler = new AgentMqttMessageHandler(config, new MqttPointExtractor(mapper), devices, writer, discovery);
+
+    @Test
+    void unknownUuidIsSubmittedForApprovalWithoutWritingMeasurements() throws Exception {
+        String uuid = "d2d86cc5-224d-4b97-964b-abd9ac94765c";
+        when(config.resolve("UUID", uuid)).thenReturn(Optional.empty());
+        handler.handle(mapper.readTree("""
+            {"time":"2026-10-14T08:11:13Z","deviceInfo":{"identityType":"UUID",
+            "externalId":"d2d86cc5-224d-4b97-964b-abd9ac94765c","deviceName":"server"},
+            "metadata":{"os":"Linux"},"components":[]}
+            """));
+        verify(discovery).discover(eq(uuid), eq("server"), any());
+        verifyNoInteractions(writer);
+    }
 
     @Test
     void confirmedAgentJsonResolvesMacAndWritesConfiguredDeviceAndGpuValues() throws Exception {
@@ -57,3 +72,4 @@ class AgentMqttMessageHandlerTest {
         verifyNoInteractions(writer);
     }
 }
+
