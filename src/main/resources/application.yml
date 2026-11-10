@@ -1,8 +1,6 @@
 spring:
   application:
     name: new-sensor-data-server
-  profiles:
-    active: test
 
 server:
   port: 8082
@@ -27,7 +25,7 @@ app:
 
 security:
   auth-enabled: true
-  api-key: ${SENSOR_DATA_API_KEY:sensor-data-server}
+  api-key: ${SENSOR_DATA_API_KEY}
 
 management:
   endpoints:
@@ -38,7 +36,7 @@ management:
 manager:
   service:
     url: ${MANAGER_SERVICE_URL:http://localhost:8080}
-    api-key: ${MANAGER_API_KEY:sensor-data-service}
+    api-key: ${MANAGER_API_KEY}
     enabled: ${MANAGER_LOOKUP_ENABLED:true}
 
 sensor:

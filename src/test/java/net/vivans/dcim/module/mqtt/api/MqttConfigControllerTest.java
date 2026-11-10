@@ -17,6 +17,9 @@ import static org.mockito.Mockito.*;
 @AutoConfigureMockMvc
 class MqttConfigControllerTest {
     @Autowired MockMvc mvc;
+    @MockitoBean(name = "managerRestClient") org.springframework.web.client.RestClient managerRestClient;
+    @MockitoBean net.vivans.dcim.module.manager.infrastructure.AlarmMeasurementClient alarmMeasurementClient;
+    @MockitoBean net.vivans.dcim.module.manager.infrastructure.GpuAgentDiscoveryClient gpuAgentDiscoveryClient;
     @MockitoBean MqttConfigurationService configuration;
     @MockitoBean net.vivans.dcim.module.lora.application.LoraConfigCache loraCache;
     @MockitoBean net.vivans.dcim.module.mqtt.infrastructure.LoraMqttSubscriber loraSubscriber;
