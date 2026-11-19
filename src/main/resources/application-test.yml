@@ -1,7 +1,7 @@
 influx:
   enabled: true
-  url: ${INFLUX_URL:http://192.168.10.14:20192}
-  token: ${INFLUX_TOKEN:bJe_OHMl74F53g_O5CQsKwrEt_TQrNfmOzMLpGj724n0HbDXlqOhoz3x6_KJXARvOw0yHGdywzLde5gf4hgx_g==}
+  url: ${INFLUX_URL}
+  token: ${INFLUX_TOKEN}
   org: ${INFLUX_ORG:vivans}
   bucket: ${INFLUX_BUCKET:dcim}
   measurement: ${INFLUX_MEASUREMENT:dcim_sensor}
@@ -16,5 +16,5 @@ sensor:
 manager:
   service:
     url: ${MANAGER_SERVICE_URL:http://localhost:8080}
-    api-key: ${MANAGER_API_KEY:sensor-data-service}
+    api-key: ${MANAGER_API_KEY}
     enabled: ${MANAGER_LOOKUP_ENABLED:true}

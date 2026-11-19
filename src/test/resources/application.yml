@@ -4,6 +4,7 @@ spring:
 
 security:
   auth-enabled: false
+  api-key: test-sensor-key
 
 manager:
   service:
